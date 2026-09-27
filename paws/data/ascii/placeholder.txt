@@ -1,0 +1,7 @@
+^   ^ 
+  (o)_(o)        PAWS
+   / o \        SLSsteam manager
+  /     \       steam-activated-feline
+ /  _   _  \     pick art:  paws art --banner <name>
+  \/ \_/ \/     drop your own *.txt into
+                 ~/.config/paws/ascii/

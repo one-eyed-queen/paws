@@ -1,0 +1,40 @@
+.TH PAWS 1 "September 2026" "paws 1.0.0" "User Commands"
+.SH NAME
+paws \- menu-driven SLSsteam manager for Linux
+.SH SYNOPSIS
+.B paws
+[\fB\-w\fP] [\fIcommand\fP]
+.SH DESCRIPTION
+.B paws
+opens the full-screen TUI in the terminal you run it in. Give it a subcommand for the
+command-line interface instead. With
+.B \-\-window
+(or when started with no terminal at all, like from an app menu) it opens a new terminal
+window running paws.
+.SH OPTIONS
+.TP
+.B \-w, \-\-window
+Open paws in a new terminal window instead of the current one. The terminal is picked from
+$PAWS_TERMINAL, the one you are typing in, $TERMINAL, then whatever of kitty, konsole,
+alacritty, foot, wezterm, ... is installed. If one fails to start, the next is tried and its
+error is printed.
+.SH COMMANDS
+.TP
+.B menu
+Open the full-screen TUI in this terminal (default when run interactively).
+.TP
+.B launch
+Show how paws opens and which terminal \fB\-\-window\fP would use.
+.TP
+.B doctor
+Preflight checks. \fBpaws doctor \-\-fix\fP adds config keys SLSsteam expects.
+.TP
+.B settings
+Show or change settings: \fBpaws settings nsfw on|off\fP,
+\fBpaws settings random on|off\fP,
+\fBpaws settings launch <cmd>\fP,
+\fBpaws settings features\fP.
+.SH ENVIRONMENT
+.TP
+.B PAWS_TERMINAL
+Force the terminal emulator used by \fB\-\-window\fP.

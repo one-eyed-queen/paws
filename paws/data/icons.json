@@ -1,0 +1,25 @@
+{
+  "$comment": "Menu glyphs. Use nerd-font codepoints when a nerd font is available, else the ASCII fallback.",
+  "icons": {
+    "home": ["\ue69b", "H"],
+    "status": ["\ueb6b", "S"],
+    "install": ["\uec06", "I"],
+    "add": ["\uf055", "+"],
+    "remove": ["\uf068", "-"],
+    "activation": ["\uf023", "A"],
+    "keys": ["\uf085", "K"],
+    "sections": ["\ueb0c", "C"],
+    "restore": ["\uf0e2", "R"],
+    "alias": ["\u2b21", "X"],
+    "quit": ["\uf011", "Q"],
+    "go": ["\ueb3e", "G"],
+    "back": ["\ueb27", "<"],
+    "box": ["\ueb1a", "+"],
+    "art": ["\uf03e", "P"],
+    "settings": ["\uf013", "#"],
+    "nsfw": ["\uf110", "!"],
+    "terminal": ["\uf120", ">"],
+    "banner": ["\uf03e", "B"],
+    "games": ["\uf11b", "G"]
+  }
+}

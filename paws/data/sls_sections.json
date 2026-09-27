@@ -1,0 +1,209 @@
+{
+  "$comment": "every key of SLSsteam's config.yaml (32), checked against AceSLS/SLSsteam src/config.cpp and res/config.yaml. `removed` is keys SLSsteam doesn't read anymore or never had: paws warns if your config still has them and never writes them.",
+  "scalar_defaults": {
+    "DisableFamilyShareLock": "yes",
+    "UseWhitelist": "no",
+    "MaxSchemaTries": "10",
+    "SafeMode": "no",
+    "WarnHashMissmatch": "no",
+    "NotifyInit": "yes",
+    "API": "no",
+    "Plugins": "no",
+    "DisableCloud": "yes",
+    "DisableUpdates": "yes",
+    "FakeName": "",
+    "FakeEmail": "",
+    "FakeWalletBalance": "0",
+    "SmartTickets": "0x1",
+    "LogLevels": "0xff",
+    "DumpClientInterfaces": "no",
+    "ExtendedLogging": "no"
+  },
+  "sections": {
+    "DisableFamilyShareLock": {
+      "type": "bool",
+      "desc": "turns off family share license locking, for you and for others"
+    },
+    "UseWhitelist": {
+      "type": "bool",
+      "desc": "AppIds becomes a whitelist instead of the usual blacklist"
+    },
+    "AppIds": {
+      "type": "list-int",
+      "item": "  - {id} # {name}",
+      "desc": "apps to leave out or put in. a game's AppId covers all its DLC",
+      "tool": "manage"
+    },
+    "AdditionalApps": {
+      "type": "list-int",
+      "item": "  - {id} # {name}",
+      "desc": "apps to inject. overrides OwnerIds for shared apps and BREAKS downloads, so only use it for games not in your library",
+      "tool": "manage"
+    },
+    "DlcData": {
+      "type": "map-map",
+      "key": "{appid}:",
+      "item": "    {dlc}: \"{name}\"",
+      "desc": "extra DLC names, only needed when a game runs into steam's 64 DLC limit",
+      "tool": "expert"
+    },
+    "AppTokens": {
+      "type": "map-int",
+      "item": "  {id}: {token} # {name}",
+      "desc": "tokens SLSsteam uses to get product info from steam for some games",
+      "tool": "game"
+    },
+    "CDKeys": {
+      "type": "map-str",
+      "item": "  {id}: \"{key}\" # {name}",
+      "desc": "old CD keys some games want. if you don't set one SLSsteam makes one up from your accountId + appId",
+      "tool": "expert"
+    },
+    "FakeOffline": {
+      "type": "list-int",
+      "item": "  - {id} # {name}",
+      "desc": "makes steam look offline for these apps",
+      "tool": "game"
+    },
+    "FakeAppIds": {
+      "type": "map-int",
+      "item": "  {id}: {fake} # {name}",
+      "desc": "swap an app's AppId so networking works. key 0 = every app you don't own. one app per fake id at a time! most people use 480 (Spacewar) so they land with the Online-Fix crowd. games on SteamNetworkingSockets also need a cert patch (search \"SLSsteam SteamNetworkingSockets Patch\"), skip that if the game has anti-cheat",
+      "tool": "game"
+    },
+    "ManifestIds": {
+      "type": "map-int",
+      "item": "  {depot}: {manifest} # {name}",
+      "desc": "pin a depot to a manifest: old game versions, or lock a game to one version",
+      "tool": "game"
+    },
+    "DepotBlacklist": {
+      "type": "list-int",
+      "item": "  - {depot} # {name}",
+      "desc": "depots to never download (fixes the Saints Row IV Proton downloads for example)",
+      "tool": "game"
+    },
+    "IdleStatus": {
+      "type": "idle",
+      "desc": "custom in-game status. AppId 0 turns it off",
+      "tool": "expert"
+    },
+    "GameTitles": {
+      "type": "map-str",
+      "item": "  {id}: \"{title}\"",
+      "desc": "rename games. only works for apps you own",
+      "tool": "expert"
+    },
+    "SubscriptionTimestamps": {
+      "type": "map-int",
+      "item": "  {id}: {timestamp}",
+      "desc": "change purchase dates",
+      "tool": "expert"
+    },
+    "DenuvoGames": {
+      "type": "map-list",
+      "key": "  {steamid}:",
+      "item": "    - {appid} # {name}",
+      "desc": "stops a game from unlocking on the wrong account. the key is a 64-bit SteamId",
+      "tool": "game"
+    },
+    "SteamIdOverride": {
+      "type": "map-int",
+      "item": "  {id}: {steamid} # {name}",
+      "desc": "the SteamId an app gets to see. 0 = the one in the cached AppOwnershipTicket",
+      "tool": "expert"
+    },
+    "SmartTickets": {
+      "type": "hex",
+      "desc": "smarter SteamId spoofing by looking at the exe that just connected. SteamDRM=0x1, Denuvo=0x2",
+      "tool": "expert"
+    },
+    "MaxSchemaTries": {
+      "type": "int",
+      "desc": "grabs achievement schemas from steam's CDN by itself. 0 turns it off (use tools/schema-grabber)",
+      "tool": "expert"
+    },
+    "LaunchOptions": {
+      "type": "map-str",
+      "item": "  {id}: \"{options}\"",
+      "desc": "change the launch command in SpawnGame, %command% works. 4294967294 = all apps you don't own, 4294967295 = all apps",
+      "tool": "game"
+    },
+    "SafeMode": {
+      "type": "bool",
+      "desc": "turns SLSsteam off when steamclient.so has a hash it doesn't know. good for steam deck gamemode",
+      "tool": "safety"
+    },
+    "WarnHashMissmatch": {
+      "type": "bool",
+      "desc": "pops a notification when steamclient.so's hash isn't a known safe one",
+      "tool": "safety"
+    },
+    "NotifyInit": {
+      "type": "bool",
+      "desc": "pops a notification once SLSsteam has started",
+      "tool": "safety"
+    },
+    "API": {
+      "type": "bool",
+      "desc": "lets you send commands through /tmp/SLSsteam.API (install, uninstall, compat, reloadlua)",
+      "tool": "system"
+    },
+    "Plugins": {
+      "type": "bool",
+      "desc": "loads lua plugins from the plugins folder. they run whatever code they want, only trust ones you know",
+      "tool": "system"
+    },
+    "DisableCloud": {
+      "type": "bool",
+      "desc": "no cloud saves for unlocked games. set it to no if you use CloudRedirect",
+      "tool": "safety"
+    },
+    "DisableUpdates": {
+      "type": "bool",
+      "desc": "no updates for AdditionalApps and games you don't own. games you own use ManifestIds",
+      "tool": "safety"
+    },
+    "FakeName": {
+      "type": "str",
+      "desc": "changes your profile name, on your side only",
+      "tool": "misc"
+    },
+    "FakeEmail": {
+      "type": "str",
+      "desc": "changes your email, on your side only (shows as verified)",
+      "tool": "misc"
+    },
+    "FakeWalletBalance": {
+      "type": "int",
+      "desc": "changes your wallet balance, on your side only. 0 turns it off",
+      "tool": "misc"
+    },
+    "LogLevels": {
+      "type": "hex",
+      "desc": "what gets logged, as a bitmask: Trace=0x1 Once=0x2 Debug=0x4 Warn=0x8 Error=0x10 Info=0x20 NotifyShort=0x40 NotifyLong=0x80",
+      "tool": "system"
+    },
+    "DumpClientInterfaces": {
+      "type": "bool",
+      "desc": "dumps every IClientInterfaceMap it uses (for debugging)",
+      "tool": "system"
+    },
+    "ExtendedLogging": {
+      "type": "bool",
+      "desc": "logs every Steamworks call. the log gets huge, debugging only",
+      "tool": "system"
+    }
+  },
+  "removed": [
+    "DenuvoSpoof",
+    "UnownedStatus",
+    "PlayNotOwnedGames",
+    "AutoFilterList",
+    "Notifications",
+    "LogLevel",
+    "AdditionalDepots",
+    "AdditionalPackages",
+    "DecryptionKeys"
+  ]
+}

@@ -1,0 +1,91 @@
+# PAWS SOURCE-AVAILABLE LICENSE v2
+
+Copyright (c) 2026 paws project — © 2026 ken (kaneki ken) / Anteiku. All rights reserved.
+
+This is a **Source-Available** license, not an OSI open-source license. The code is
+public so you can read it, learn from it, and run it — but you may **not** copy,
+rebrand, resell, strip credits, or train models on it. Every copy of this Software
+is fingerprinted at release; infringing forks are discovered, traced and acted on.
+
+---
+
+## 1. Definitions
+
+- **"Software"** means the source code, binaries, scripts, documentation,
+  art assets, icons, palettes, config files and all other material in this
+  repository, in whole or in part, in any form or media, past and future.
+- **"Derivative Work"** means any modification, adaptation, extension,
+  translation, port, remix, "rewrite", extraction, re-characterization or
+  reproduction of the Software, or of any substantial portion of it, whether or
+  not recognizable or attributed.
+- **"You"** means any person or entity that views, downloads, or uses the Software.
+
+## 2. Permitted Use
+
+You are granted a non-exclusive, non-transferable, revocable, personal license to
+view, download, compile and run the Software **solely for your own personal,
+educational or internal testing purposes**. That is the entire grant. Nothing
+else is implied.
+
+## 3. Absolute Prohibitions
+
+You must NOT, under any circumstances:
+
+1. **Sell or monetize** — sell, lease, rent, license, sublicense, monetize,
+   crowdsource-fund, or host the Software as a paid or donation-gated service,
+   in whole or in part, directly or indirectly.
+2. **Rebrand or rename** — repackage, rename, re-title, or distribute the
+   Software under any other name, brand, logo, mascot or identity than "paws".
+3. **Remake or redistribute Derivative Works** — modify, adapt, extend, port,
+   remix or create Derivative Works of the Software and distribute, publish,
+   exhibit or share them with any third party, in any form.
+4. **Remove credit** — remove, obscure, alter, or license-over the copyright
+   notices, author credits, watermark text or license of the Software,
+   including any Copyright Management Information within the meaning of
+   17 U.S.C. § 1202.
+5. **Claim ownership** — claim authorship, ownership, or exclusive rights over
+   the Software or any portion of it, or present it as your own work.
+6. **Train AI / ML on it** — use, ingest, scrape, crawl, fetch or extract the
+   Software (code, comments, structure, architecture, assets or documentation)
+   for training, fine-tuning, validating or improving any machine-learning
+   model, large language model, neural network, chatbot or AI pipeline.
+   Automated crawling or bulk harvesting of this repository for such purposes
+   is expressly forbidden regardless of any "fair use" or "fair dealing" claim.
+7. **Mirror or host without permission** — publish the Software on any package
+   index, mirror, forge, CDN or archive, for any audience, without prior written
+   permission.
+
+## 4. Enforcement (you will be pursued)
+
+Any violation of any term automatically, immediately and permanently
+terminates your license and any rights you may assert to the Software.
+
+- The Licensor actively monitors public code hosts and search engines for
+  copies of this Software; derivative works are matched against release
+  fingerprints and traced back to their publisher.
+- Each infringement entitles the Licensor to pursue **statutory damages of up
+  to $150,000 per infringing work** plus attorneys' fees and costs (17 U.S.C.
+  § 504), including the $2,500–$25,000 per-work range for unauthorised removal
+  or alteration of Copyright Management Information (17 U.S.C. § 1203).
+- Willful infringement may also constitute **criminal copyright**
+  (18 U.S.C. § 2319), prosecutable as a felony.
+- The Licensor will file **DMCA takedowns** against any infringing
+  repository, fork, package or mirror (hosts routinely process these within
+  24–48 hours) and may seek injunctive relief and both actual and exemplary
+  damages against repeat infringers.
+- All disputes arising under this License shall be adjudicated in the courts
+  of the Licensor's jurisdiction, to the exclusion of any other forum, and
+  You consent to that jurisdiction.
+
+## 5. No Warranty
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE
+LICENSOR BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY ARISING FROM,
+OUT OF, OR IN CONNECTION WITH THE SOFTWARE.
+
+---
+
+*If you are in doubt about whether your use is allowed, the answer is no — ask
+for written permission first.*

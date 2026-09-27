@@ -1,0 +1,31 @@
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# locals & secrets
+*.local
+.env
+keys.json
+paws.info.json
+
+# os / editor
+.DS_Store
+*.swp
+*~
+
+# kept on this machine only, not part of the repo
+tests/
+DEVNOTES.md
+
+# private tooling
+SOURCE_COMMENTS.md
+tools/

@@ -1,0 +1,981 @@
+Screen {
+    background: $background;
+    scrollbar-size: 1 1;
+}
+
+AppHeader {
+    height: 5;
+    background: #0c1424;
+    color: $text;
+    layout: horizontal;
+    align: left middle;
+}
+
+PaintedHeader {
+    width: 100%;
+    height: 100%;
+    background: #0c1424;
+    color: $text;
+    content-align: right middle;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
+#hdr-banner {
+    width: auto;
+    height: 100%;
+    margin: 0;
+}
+
+#hdr-text {
+    width: 1fr;
+    height: 100%;
+    background: #0c1424;
+    content-align: right middle;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
+AppHeader.-home {
+    height: 6;
+}
+
+#top-row {
+    height: 9;
+}
+
+#home-body {
+    height: 1fr;
+    padding: 0;
+}
+
+AsciiPanel {
+    width: 100%;
+    height: 100%;
+    content-align: center middle;
+    text-wrap: nowrap;
+    text-overflow: clip;
+    color: #ffffff;
+    background: #000000;
+}
+
+#art-zone {
+    width: 48;  /* fixed, home.py only narrows it on a small window */
+    height: 1fr;
+    overflow: hidden;
+    background: #000000;
+    align: center middle;
+    margin-right: 0;
+}
+
+#art-home {
+    height: 100%;
+}
+
+#right-col {
+    width: 1fr;
+    min-width: 56;
+}
+
+
+#right-col FooterHelp {
+    dock: none;
+    height: 2;
+    padding: 0 1 0 1;
+}
+
+#menu-panel {
+    height: 1fr;
+    background: #101a30;
+    padding: 0;
+}
+
+#menu-panel-title {
+    height: 1;
+    background: #0c1424;
+    color: $text;
+    text-style: bold;
+    content-align: center middle;
+    margin: 0 0 1 0;
+}
+
+#menu-body {
+    height: 1fr;
+}
+
+#menu-body > #menu {
+    width: 1fr;
+    border: solid #3d4f80;
+    background: transparent;
+}
+
+#menu-detail {
+    width: 40;
+    height: 100%;
+    padding: 1 2;
+    color: #dbe4ff;
+    text-wrap: wrap;
+}
+
+#menu ListItem {
+    padding: 0 2 0 2;
+}
+
+Menu > MenuItem.-highlight {
+    background: $accent 40%;
+    color: $text;
+    text-style: bold;
+}
+
+#menu ListItem.-highlight {
+    background: $accent 40%;
+    color: $text;
+    text-style: bold;
+}
+
+#home-status {
+    height: auto;
+    color: $text;
+    padding: 0 2;
+}
+
+.panel {
+    background: transparent;
+    padding: 1 2 1 2;
+    margin: 1 2 1 2;
+}
+
+FooterHelp {
+    height: 3;
+    dock: bottom;
+    background: transparent;
+    color: $text;
+    padding: 0 2 0 2;
+}
+
+Button {
+    margin: 0 1 0 0;
+}
+
+Button:focus {
+    text-style: bold;
+    background: $accent;
+    color: #06101f;
+}
+
+Input {
+    margin: 0 1 1 0;
+}
+
+DataTable {
+    margin: 1 0 1 0;
+    height: 1fr;
+}
+
+DataTable > .datatable--header {
+    text-style: bold;
+    color: $accent;
+    background: #0c1424;
+}
+
+DataTable > .datatable--cursor {
+    background: $accent 35%;
+    color: $text;
+    text-style: bold;
+}
+
+Screen, .panel, DataTable, ListView, VerticalScroll, TextArea {
+    /* thin quiet scrollbar, no dark track (it lets the picture thru) */
+    scrollbar-size-vertical: 1;
+    scrollbar-size-horizontal: 1;
+    scrollbar-background: transparent;
+    scrollbar-background-hover: transparent;
+    scrollbar-background-active: transparent;
+    scrollbar-color: $primary 55%;
+    scrollbar-color-hover: $accent 80%;
+    scrollbar-color-active: $accent;
+    scrollbar-corner-color: transparent;
+}
+
+VerticalScroll {
+    height: 1fr;
+}
+
+#doctor-scroll {
+    height: 1fr;
+    background: transparent;
+    padding: 1 2 1 2;
+}
+
+#bulk-buttons, #remove-actions, #repair-buttons, #sls-buttons, #plug-buttons, #add-inputs, #add-buttons, #add-split, #act-inputs, #add-actions, #act-actions, #act-actions-use, #act-make, #act-use {
+    height: auto;
+}
+
+#add-actions, #act-actions, #act-actions-use, #add-buttons, #sls-buttons, #plug-buttons, #repair-buttons, #bulk-buttons {
+    overflow-x: auto;  /* narrow terminal scrolls the buttons instead of pushing them off */
+}
+
+#modal-input, #modal-confirm, #modal-info, #modal-paste {
+    width: 72;
+    max-width: 96%;
+    height: auto;
+    background: $surface;
+    padding: 1 2 1 2;
+}
+
+ModalInput, Confirm, ModalInfo, ModalPaste {
+    align: center middle;
+    /* opaque, not dimmed: a dim (semi-see-through) tint blends into the screen under it, which corrupts the colour
+       kitty header pictures are keyed by. fully opaque means that screen isn't drawn at all while the popup is up
+       (no blend, nothing to glitch), same as if it were popped off the stack; it's back, untouched, once you close this */
+    background: #0a1020;
+}
+
+#mn-text {
+    margin: 1 0;
+    color: #dbe4ff;
+}
+
+#mn-buttons {
+    height: 3;
+    align-horizontal: right;
+}
+
+#modal-input Input {
+    width: 100%;
+}
+
+#mi-buttons, #c-buttons, #mp-buttons {
+    height: 3;
+    align-horizontal: right;
+}
+
+#sec-menu {
+    height: 1fr;
+    background: transparent;
+}
+
+#add-split {
+    height: 1fr;
+}
+
+#add-left {
+    width: 1fr;
+    height: 100%;
+}
+
+#add-left DataTable {
+    height: 1fr;
+}
+
+#add-left #add-hint {
+    height: auto;
+    margin: 1 0 0 0;
+}
+
+#add-detail {
+    width: 40;
+    height: 100%;
+    margin: 0 0 0 1;
+}
+
+#detail-info {
+    height: auto;
+}
+
+#detail-img {
+    margin-top: 1;
+}
+
+#bulk-out, #repair-out, #sec-out, #sls-out, #plug-out, #add-hint, #act-out, #remove-out {
+    height: auto;
+    background: transparent;
+    padding: 1 2 1 2;
+    margin: 1 2 0 2;
+}
+
+#art-row {
+    height: 1fr;
+    margin: 1 2 0 2;
+}
+#art-menu {
+    width: 26;
+    height: 1fr;
+    margin: 0 1 0 0;
+    padding: 0;
+}
+#art-right {
+    width: 1fr;
+    height: 1fr;
+}
+#art-preview {
+    width: 100%;
+    height: 1fr;
+    margin: 0 0 1 0;
+    padding: 0;
+    overflow: hidden;
+}
+#art-bar {
+    height: auto;
+    align: left middle;
+}
+#art-info {
+    width: 1fr;
+    height: 3;
+    content-align: left middle;
+    padding: 0 1;
+}
+#art-bar Button {
+    margin: 0 0 0 1;
+}
+
+#set-menu {
+    width: 100%;
+    height: 1fr;
+    background: transparent;
+}
+
+#set-hint {
+    height: auto;
+    margin: 1 0 0 0;
+}
+
+#set-out {
+    height: auto;
+    margin: 1 0 0 0;
+}
+/* ---- arcade / mini-games ---- */
+#games-grid {
+    grid-size: 2 2;
+    grid-gutter: 1 2;
+    height: 1fr;
+    margin: 1 4 1 4;  /* air on both sides, the cards touched the edge before */
+    align: center middle;
+}
+#games-grid Button {
+    width: 100%;
+    height: 7;
+    background: transparent;
+    color: $text;
+    text-style: none;
+    border: none !important;
+}
+#games-grid Button:hover {
+    background: #16264a;
+}
+#games-grid Button:focus {
+    background: #1a2a4d;
+    text-style: bold;
+}
+ArcadeScreen {
+    align: center middle;
+}
+#game-box {
+    width: auto;
+    height: auto;
+}
+#game-title {
+    width: 100%;
+    height: 1;
+    margin: 0 0 1 0;
+}
+#game-row {
+    width: auto;
+    height: auto;
+}
+#game-canvas {
+    width: auto;
+    height: auto;
+    padding: 0;
+}
+#game-side {
+    width: 32;
+    height: auto;
+    margin: 0 0 0 2;
+}
+#game-info {
+    height: auto;
+    margin: 0 0 1 0;
+}
+#game-next {
+    height: auto;
+    margin: 0 0 1 0;
+}
+#game-help {
+    height: auto;
+}
+#game-msg {
+    width: 100%;
+    height: 1;
+    margin: 1 0 0 0;
+    text-align: center;
+}
+
+/* ---- short terminals ---- */
+.-short AppHeader, .-short AppHeader.-home {
+    height: 3;
+}
+.-short .panel {
+    margin: 0;
+    padding: 0 1;
+}
+.-short #set-hint {
+    display: none;
+}
+.-short #menu-panel-title {
+    margin: 0;
+}
+.-short #home-status {
+    padding: 0 2;
+}
+
+/* ---- drop screen ---- */
+DropScreen {
+    background: #0a1020;
+    align: center middle;
+}
+#drop-card {
+    width: 64;
+    height: auto;
+    padding: 1 3;
+    background: #0c1424;
+    content-align: center middle;
+    text-align: center;
+}
+#drop-text {
+    width: 100%;
+    text-align: center;
+}
+
+/* ---- bulk screen ---- */
+#bulk-text {
+    height: 8;
+    margin: 0 0 1 0;
+}
+#bulk-table {
+    height: 1fr;
+}
+
+/* output boxes keep one height so nothing jumps */
+#set-out, #sec-out, #sls-out, #plug-out, #act-out, #remove-out, #add-hint, #bulk-out, #repair-out {
+    min-height: 5;
+}
+#set-out {
+    height: 6;
+}
+#sec-out {
+    height: 5;
+    min-height: 3;
+}
+.-short #sec-out {
+    height: 4;
+    min-height: 3;
+    padding: 0 2;
+    margin: 0 2;
+}
+
+/* ---- activation ---- */
+#act-tabs {
+    height: 1fr;
+}
+#act-tabs TabPane {
+    padding: 0 1;
+}
+#act-make {
+    height: 1fr;
+}
+#act-blurb {
+    height: auto;
+    margin: 1 0 0 0;
+}
+#act-top {
+    height: auto;
+}
+#act-top #in-aid {
+    width: 1fr;
+}
+#act-top #b-act-go {
+    width: auto;
+    margin-left: 1;
+}
+#act-kind {
+    height: auto;
+    layout: horizontal;
+    margin: 0;
+    border: none;
+    background: transparent;
+}
+#act-kind RadioButton {
+    width: auto;
+    margin-right: 3;
+}
+#act-use {
+    height: 1fr;
+}
+#tick-table {
+    height: 1fr;
+    min-height: 4;
+}
+#act-actions-use {
+    grid-size: 4 2;
+    grid-gutter: 0 1;
+    height: auto;
+    grid-rows: auto;
+}
+#act-actions-use Button {
+    width: 100%;
+}
+#act-out {
+    height: 5;
+}
+.-short #act-out {
+    height: 4;
+    margin: 0 2;
+    padding: 0 2;
+}
+.-short #act-blurb {
+    margin: 0;
+}
+
+/* ---- config editor ---- */
+#cfg-body {
+    height: 1fr;
+}
+#cfg-left {
+    width: 42%;
+    min-width: 30;
+    max-width: 54;
+    margin: 0 1 0 0;
+    padding: 0 1;
+}
+#cfg-right {
+    width: 1fr;
+    margin: 0;
+    padding: 0 1;
+}
+#cfg-filter {
+    width: 100%;
+}
+#cfg-left #sec-menu {
+    height: 1fr;
+    border: solid #3d4f80;
+    background: transparent;
+    padding: 0;
+    margin: 0;
+}
+#cfg-info {
+    height: auto;
+    min-height: 6;
+    padding: 0;
+    background: transparent;
+}
+#cfg-bool, #cfg-value, #cfg-rows {
+    height: auto;
+}
+#cfg-table {
+    height: 7;
+    background: transparent;
+}
+.cfg-buttons {
+    height: auto;
+    overflow-x: auto;
+}
+#cfg-tools {
+    height: auto;
+    overflow-x: auto;
+}
+#cfg-jump {
+    margin-top: 1;
+}
+.-short #cfg-left, .-short #cfg-right {
+    padding: 0;
+}
+.-short #cfg-info {
+    min-height: 4;
+}
+.-short #cfg-table {
+    height: 4;
+}
+.-short #cfg-jump {
+    margin-top: 0;
+}
+
+/* ---- shell alias ---- */
+#alias-box {
+    height: auto;
+    padding: 0 2;
+}
+#alias-help {
+    height: 1;
+}
+#alias-shell {
+    height: auto;
+    layout: horizontal;
+    margin: 0;
+    border: none;
+    background: transparent;
+}
+#alias-shell RadioButton {
+    width: auto;
+    margin-right: 3;
+}
+#alias-snippet {
+    height: auto;
+    min-height: 1;
+    padding: 0 2;
+    border: none;
+    background: transparent;
+    color: #dbe4ff;
+}
+#alias-buttons {
+    height: auto;
+    overflow-x: auto;
+}
+#alias-out {
+    height: 4;
+    min-height: 3;
+    margin: 0 2;
+    padding: 0 2;
+}
+.-short #alias-help {
+    display: none;
+}
+.-short #alias-box {
+    padding: 0 1;
+    margin: 0 2;
+}
+
+
+/* ---- the look: glass. controls have no solid fill, the picture shows through and the text (plus the highlight bar
+   on the current selection) does the work, with a thin quiet frame around the controls. Textual's own built-in widget
+   styles draw borders at every specificity we could match with a plain override, so these are !important: they have
+   to beat all of them, always */
+Button, Input, RadioSet, RadioButton, TextArea {
+    border: none !important;
+    border-top: none !important;
+    border-bottom: none !important;
+}
+Button, Input, TextArea, RadioSet {
+    border: solid #3d4f80 !important;
+    border-top: solid #3d4f80 !important;
+    border-bottom: solid #3d4f80 !important;
+}
+Button:focus, Input:focus, TextArea:focus, RadioSet:focus-within {
+    border: solid #00d0ff !important;
+    border-top: solid #00d0ff !important;
+    border-bottom: solid #00d0ff !important;
+}
+Button {
+    background: transparent;
+    color: $text;
+    text-style: none;
+    height: 3;
+    min-width: 10;
+    padding: 0 1;
+    margin: 0 1 0 0;
+    content-align: center middle;
+}
+Button:hover {
+    background: $primary 22%;
+}
+Button:focus {
+    background: $accent 22%;
+    color: #ffffff;
+    text-style: bold;
+}
+Button.-primary {
+    color: $accent;
+    text-style: bold;
+}
+Button.-primary:focus, Button.-primary:hover {
+    color: #ffffff;
+}
+Button.-error {
+    color: $error;
+}
+Button.-warning {
+    color: $warning;
+}
+Button:disabled {
+    color: #7f8db5;
+}
+Input {
+    background: transparent;
+    padding: 0 1;
+    margin: 0 1 0 0;
+}
+Input:focus {
+    background: transparent;
+}
+Input > .input--placeholder {
+    color: #98a5cc;
+}
+RadioSet {
+    background: transparent;
+}
+RadioButton, RadioButton:focus, RadioButton:hover {
+    background: transparent;
+}
+RadioButton:focus > .toggle--label {
+    background: $accent 25%;
+}
+Tabs, Tab, TabPane, TabbedContent, ContentSwitcher {
+    background: transparent;
+}
+Tab.-active, Tab:hover {
+    background: transparent;
+    color: $accent;
+}
+DataTable, DataTable:focus {
+    background: transparent;
+}
+DataTable > .datatable--header {
+    background: transparent;
+}
+DataTable > .datatable--odd-row, DataTable > .datatable--even-row {
+    background: transparent;
+}
+ListView, ListItem {
+    background: transparent;
+}
+ListItem.-highlight, ListView > ListItem.-highlight {
+    background: $accent 30%;
+}
+
+/* ---- pages: the same 2 cell gutter on every screen (the header and the footer stay full width) ---- */
+.page > * {
+    margin-left: 2;
+    margin-right: 2;
+}
+.page > AppHeader, .page > FooterHelp {
+    margin-left: 0;
+    margin-right: 0;
+}
+
+/* ---- per screen touches ---- */
+#sls-status, #plug-status {
+    height: auto;
+    margin: 1 2 0 2;
+    padding: 0 1;
+}
+#sls-buttons, #plug-buttons {
+    layout: grid;
+    grid-size: 2 4;
+    grid-gutter: 1 1;
+    grid-rows: auto;
+    height: auto;
+    margin: 1 2 0 2;
+}
+#sls-buttons Button, #plug-buttons Button {
+    width: 100%;
+    margin: 0;
+}
+#sls-out {
+    height: 1fr;
+    min-height: 5;
+    margin: 1 2 1 2;
+}
+#plug-table {
+    height: 1fr;
+    margin: 1 2 0 2;
+}
+#plug-out {
+    height: 1fr;
+    min-height: 5;
+    margin: 1 2 1 2;
+}
+#set-hint {
+    min-height: 3;
+    height: 3;
+    padding: 0 2;
+    margin: 1 2 0 2;
+}
+#set-out {
+    height: 4;
+    min-height: 3;
+    margin: 0 2 1 2;
+    padding: 0 2;
+}
+
+#act-split {
+    height: 1fr;
+}
+#act-split #tick-table {
+    width: 1fr;
+    margin: 0 1 0 0;
+}
+#tick-info {
+    width: 44;
+    height: 100%;
+    margin: 0;
+    padding: 0 2;
+}
+#mp-text {
+    height: 12;
+    margin: 1 0;
+    background: transparent;
+}
+#act-how {
+    height: auto;
+    margin: 1 0 0 0;
+    padding: 1 2;
+}
+.-short #act-how {
+    display: none;
+}
+.page > Horizontal {
+    height: auto;
+}
+#remove-out {
+    height: 1fr;
+    min-height: 5;
+    margin: 1 2 1 2;
+}
+
+/* radio buttons: just the dot and the label, no box around the dot or the row */
+RadioSet {
+    border: none;
+    padding: 0 1;
+}
+RadioButton > .toggle--button {
+    background: transparent;
+    color: #98a5cc;
+}
+RadioButton.-on > .toggle--button {
+    background: transparent;
+    color: $accent;
+}
+RadioButton:focus > .toggle--button {
+    background: transparent;
+}
+RadioButton > .toggle--label {
+    background: transparent;
+}
+
+/* messages get as tall as their text needs (up to a limit) instead of a fixed box that cuts the second line off */
+#sec-out, #act-out, #alias-out, #set-out {
+    height: auto;
+    min-height: 3;
+    max-height: 8;
+    padding: 0 2;
+}
+#cfg-right {
+    overflow-y: auto;
+}
+
+#menu-detail {
+    height: 100%;
+}
+#detail-top {
+    height: 8;
+    overflow: hidden;
+}
+#detail-keys {
+    height: auto;
+}
+
+MenuItem {
+    padding: 0 2;
+    height: 1;
+}
+
+/* message and output boxes get the same thin frame as the controls */
+#sec-out, #act-out, #alias-out, #set-out, #sls-out, #plug-out, #bulk-out, #repair-out, #remove-out, #add-hint {
+    border: solid #3d4f80;
+}
+
+/* ---- type: minimal. a super basic terminal ui: plain text on the terminal's own background, no colour at all
+   (the line filter in app.py strips it), the selected row is reversed. no side panel, no boxes, no pictures ---- */
+.-minimal AppHeader, .-minimal AppHeader.-home {
+    height: 1;
+    background: transparent;
+    border: none;
+}
+.-minimal #hdr-text {
+    width: 100%;
+    background: transparent;
+    content-align: left middle;
+    text-style: bold;
+    padding: 0 1;
+}
+.-minimal #art-zone, .-minimal AsciiPanel, .-minimal #menu-detail, .-minimal #menu-panel-title, .-minimal #set-hint {
+    display: none;
+}
+.-minimal #top-row, .-minimal #home-body {
+    padding: 0;
+}
+.-minimal .panel, .-minimal #menu-panel, .-minimal #menu-body > #menu, .-minimal #cfg-left #sec-menu,
+.-minimal DataTable, .-minimal #alias-snippet {
+    background: transparent;
+    border: none;
+    margin: 0 1;
+    padding: 0 1;
+}
+.-minimal Menu > MenuItem.-highlight, .-minimal #menu ListItem.-highlight, .-minimal ListItem.-highlight,
+.-minimal ListView > ListItem.-highlight, .-minimal DataTable > .datatable--cursor,
+.-minimal Button:focus, .-minimal RadioButton:focus > .toggle--label {
+    background: transparent;
+    text-style: reverse;
+}
+.-minimal DataTable > .datatable--header {
+    background: transparent;
+    text-style: bold underline;
+}
+.-minimal Button, .-minimal RadioSet {
+    background: transparent;
+    border: none !important;
+    border-top: none !important;
+    border-bottom: none !important;
+    height: 1;
+    min-width: 0;
+    padding: 0 1;
+    text-style: none;
+}
+.-minimal Button:hover {
+    background: transparent;
+    text-style: underline;
+}
+.-minimal Button:focus {
+    border: none !important;
+    border-top: none !important;
+    border-bottom: none !important;
+}
+.-minimal Input, .-minimal TextArea {
+    background: transparent;
+    border: solid ansi_default !important;
+    border-top: solid ansi_default !important;
+    border-bottom: solid ansi_default !important;
+}
+.-minimal ModalInput, .-minimal Confirm, .-minimal ModalInfo, .-minimal ModalPaste, .-minimal DropScreen {
+    background: ansi_default;
+}
+.-minimal #modal-input, .-minimal #modal-confirm, .-minimal #modal-info, .-minimal #modal-paste, .-minimal #drop-card {
+    background: ansi_default;
+    border: solid ansi_default;
+}
+.-minimal FooterHelp {
+    background: transparent;
+    height: 1;
+    padding: 0 1;
+}
+.-minimal Screen, .-minimal .panel, .-minimal DataTable, .-minimal ListView, .-minimal VerticalScroll,
+.-minimal TextArea {
+    scrollbar-color: ansi_default;
+    scrollbar-color-hover: ansi_default;
+    scrollbar-color-active: ansi_default;
+}
+
+.-short JobBar {
+    height: 1;
+    margin: 0 2;
+}
+/* minimal: the bar sits at the bottom, one row above the footer */
+.-minimal JobBar {
+    height: 2;
+    dock: bottom;
+    margin: 0 1 1 1;
+}
+.-minimal #sec-out, .-minimal #act-out, .-minimal #alias-out, .-minimal #set-out, .-minimal #sls-out,
+.-minimal #plug-out, .-minimal #bulk-out, .-minimal #repair-out, .-minimal #remove-out, .-minimal #add-hint {
+    border: none;
+}

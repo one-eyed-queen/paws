@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=paws
+GenericName=SLSsteam Manager
+Comment=Menu-driven SLSsteam manager for Linux
+Exec=paws --window
+Terminal=false
+Categories=Utility;
+Icon=paws
+StartupWMClass=paws
+Keywords=paws;sls;steam;

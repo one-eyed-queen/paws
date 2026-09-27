@@ -1,0 +1,29 @@
+# Maintainer: paws <paws@localhost>
+# Build from a released tarball. Single-command install:
+#   curl -fsSL https://raw.githubusercontent.com/one-eyed-queen/paw/main/scripts/paws-install.sh | bash
+
+pkgname=paws
+pkgver=1.0.0
+pkgrel=1
+pkgdesc="Menu-driven SLSsteam manager for Linux (run paws in any terminal)"
+arch=('any')
+url="https://example.invalid/paws"
+license=('custom')
+depends=('python' 'python-textual' 'python-rich' 'python-yaml' 'python-py7zr' 'python-pillow')
+optdepends=('python-textual-image: sharp icon, banner and drop screen in kitty / sixel terminals')
+source=("${pkgname}-${pkgver}.tar.gz::https://example.invalid/paws/releases/download/v${pkgver}/${pkgname}-${pkgver}.tar.gz")
+sha256sums=('SKIP')
+
+package() {
+    cd "${srcdir}/${pkgname}-${pkgver}"
+    python -m pip install \
+        --root="${pkgdir}" \
+        --prefix=/usr \
+        --no-deps \
+        --no-build-isolation \
+        .
+    install -Dm644 LICENSE "${pkgdir}/usr/share/licenses/paws/LICENSE"
+    install -Dm644 packaging/paws.desktop "${pkgdir}/usr/share/applications/paws.desktop"
+    install -Dm644 packaging/paws.png "${pkgdir}/usr/share/icons/hicolor/512x512/apps/paws.png"
+    install -Dm644 packaging/paws.1 "${pkgdir}/usr/share/man/man1/paws.1"
+}

@@ -1,0 +1,49 @@
+{
+  "$comment": "Named color palettes for neofetch-style ASCII art. Keys are neofetch set_colors indices (1-8 basic, 9-15 bright); values are Rich markup colors (names, #hex, or integers as 256-color). Referenced from an art file via a palette=<name> header.",
+  "palettes": {
+    "xterm": {
+      "1": "red",
+      "2": "green",
+      "3": "yellow",
+      "4": "blue",
+      "5": "magenta",
+      "6": "cyan",
+      "7": "white",
+      "8": "bright_black",
+      "9": "bright_red",
+      "10": "bright_green",
+      "11": "bright_yellow",
+      "12": "bright_blue",
+      "13": "bright_magenta",
+      "14": "bright_cyan",
+      "15": "bright_white"
+    },
+    "kuwaii": {
+      "1": "#ff6b9d",
+      "2": "#7bdff2",
+      "3": "#f4f4f9",
+      "4": "#b2f7ef",
+      "5": "#ff99c8",
+      "6": "#ffb8e0",
+      "7": "#f6d365",
+      "8": "#8d99ae"
+    },
+    "human": {
+      "1": "#2d1e16",
+      "2": "#5a3d2a",
+      "3": "#eab48a",
+      "4": "#ffd9bf",
+      "5": "#c97b63",
+      "6": "#8a5a44",
+      "7": "#f5efe6",
+      "8": "#6b7280",
+      "9": "#1d1109",
+      "10": "#7a4f30",
+      "11": "#f6c9a0",
+      "12": "#ffe9d8",
+      "13": "#b9805a",
+      "14": "#4a3a2f",
+      "15": "#e4ddcf"
+    }
+  }
+}
