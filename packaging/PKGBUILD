@@ -1,17 +1,17 @@
 # Maintainer: paws <paws@localhost>
 # Build from a released tarball. Single-command install:
-#   curl -fsSL https://raw.githubusercontent.com/one-eyed-queen/paw/main/scripts/paws-install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/one-eyed-queen/paws/main/scripts/paws-install.sh | bash
 
 pkgname=paws
-pkgver=1.0.0
+pkgver=1.0.127
 pkgrel=1
 pkgdesc="Menu-driven SLSsteam manager for Linux (run paws in any terminal)"
 arch=('any')
-url="https://example.invalid/paws"
+url="https://github.com/one-eyed-queen/paws"
 license=('custom')
 depends=('python' 'python-textual' 'python-rich' 'python-yaml' 'python-py7zr' 'python-pillow')
 optdepends=('python-textual-image: sharp icon, banner and drop screen in kitty / sixel terminals')
-source=("${pkgname}-${pkgver}.tar.gz::https://example.invalid/paws/releases/download/v${pkgver}/${pkgname}-${pkgver}.tar.gz")
+source=("${pkgname}-${pkgver}.tar.gz::https://github.com/one-eyed-queen/paws/releases/download/v${pkgver}/${pkgname}-${pkgver}.tar.gz")
 sha256sums=('SKIP')
 
 package() {

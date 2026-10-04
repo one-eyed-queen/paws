@@ -22,6 +22,13 @@ def enabled() -> bool:
 
 def restart(argv: list[str]):  # pragma: no cover - replaces the process
     env = {**os.environ, JUST_UPDATED: "1"}
+    if os.name == "nt":
+        # windows has no real exec: os.execve starts a second process and this one exits under it, which hands the
+        # console back to the shell mid-TUI. run the new build as a child and leave with its exit code instead
+        import subprocess
+
+        safe = ["-P"] if sys.version_info >= (3, 11) else []
+        sys.exit(subprocess.call([sys.executable, "-X", "utf8", *safe, "-m", "paws", *argv], env=env))
     script = os.path.join(os.path.dirname(sys.executable), "paws")
     if os.path.exists(script):
         os.execve(script, [script, *argv], env)

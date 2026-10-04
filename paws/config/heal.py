@@ -264,6 +264,18 @@ def heal(text):
     return Healed(new, fixed + more, stuck)
 
 
+def comment_out_stuck(text: str, stuck: list[Fix]) -> str:
+    """neutralize a line paws can't safely guess a fix for by turning it into a comment.
+    nothing is deleted - the original text stays right there, just inert until fixed by hand"""
+    lines = text.split("\n")
+    for f in stuck:
+        i = f.line - 1
+        if 0 <= i < len(lines) and not lines[i].lstrip().startswith("#"):
+            indent = lines[i][: len(lines[i]) - len(lines[i].lstrip())]
+            lines[i] = f"{indent}# {lines[i].strip()}  # paws commented this out: {f.why}"
+    return "\n".join(lines)
+
+
 APPID_SECTIONS = ("AppIds", "AdditionalApps", "FakeOffline", "AppTokens", "FakeAppIds", "LaunchOptions", "DlcData")
 
 

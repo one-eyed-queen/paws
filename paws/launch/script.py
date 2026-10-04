@@ -13,9 +13,12 @@ def paws_argv() -> list[str]:
     if exe:
         return [os.path.realpath(exe), "menu"]
     if sys.executable:
-        sibling = os.path.join(os.path.dirname(sys.executable), "paws")
+        sibling = os.path.join(os.path.dirname(sys.executable), "paws.exe" if os.name == "nt" else "paws")
         if os.path.exists(sibling):
             return [sibling, "menu"]
+        scripts = os.path.join(os.path.dirname(sys.executable), "Scripts", "paws.exe")  # windows venv/python layout
+        if os.name == "nt" and os.path.exists(scripts):
+            return [scripts, "menu"]
         return [sys.executable, "-m", "paws", "menu"]
     return ["python3", "-m", "paws", "menu"]
 

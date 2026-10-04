@@ -7,10 +7,45 @@ from pathlib import Path
 from ..paths import HOME
 from ..sls.find import which_binary
 from ..util import fs, pkgmgr
+from ..windows import IS_WINDOWS
 from .model import SteamInstall
+
+WINDOWS_ROOTS = (
+    Path(os.environ.get("ProgramFiles(x86)") or "C:/Program Files (x86)") / "Steam",
+    Path(os.environ.get("ProgramFiles") or "C:/Program Files") / "Steam",
+)
+
+
+def windows_root() -> Path | None:
+    """the folder steam.exe lives in. cheap (registry + a stat), no process listing"""
+    from ..windows import registry
+
+    roots = [Path(p) for p in (os.environ.get("PAWS_STEAM_ROOT"), registry.steam_path()) if p]
+    return next((r for r in [*roots, *WINDOWS_ROOTS] if fs.exists(r / "steam.exe")), None)
+
+
+def _find_windows_steam() -> SteamInstall | None:
+    from ..windows import registry
+
+    root = windows_root()
+    if root is None:
+        return None
+    config_path = root / "config" / "config.vdf"
+    st = SteamInstall(
+        kind="windows",
+        binary=os.environ.get("STEAM_BINARY") or registry.steam_exe() or str(root / "steam.exe"),
+        root=root,
+        config_vdf=config_path if fs.exists(config_path) else None,
+        depotcache=root / "depotcache",
+    )
+    st.client_version, st.channel = _client_version(st)
+    st.is_running = _is_running()
+    return st
 
 
 def find_steam() -> SteamInstall | None:
+    if IS_WINDOWS:
+        return _find_windows_steam()
     binary = os.environ.get("STEAM_BINARY") or which_binary("steam")
 
     candidates = []
@@ -104,13 +139,14 @@ def find_steam() -> SteamInstall | None:
 def _client_version(st):
     if st.root is None:
         return None, "stable"
-    if st.kind == "flatpak":
+    if st.kind in ("flatpak", "windows"):
         pkg = st.root / "package"
     else:
         pkg = st.root / "package" if fs.exists(st.root / "package") else st.root.parent / "package"
     if not fs.exists(pkg):
         return None, "stable"
-    for mf in sorted(pkg.glob("steam_client_*ubuntu12.manifest")):
+    pattern = "steam_client_*win*.manifest" if st.kind == "windows" else "steam_client_*ubuntu12.manifest"
+    for mf in sorted(pkg.glob(pattern)):
         if "steamdeck" in mf.name:
             channel = "steamdeck"
         elif "beta" in mf.name:
@@ -127,6 +163,10 @@ def _client_version(st):
 
 
 def _is_running():
+    if IS_WINDOWS:
+        from ..windows import process
+
+        return bool(process.pids("steam.exe"))
     try:
         out = subprocess.run(["ps", "-e", "-o", "comm="], capture_output=True, text=True, timeout=5).stdout
     except (OSError, subprocess.SubprocessError):

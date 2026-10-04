@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from ...shellalias import SHELLS, install_path, shells_in_use, snippet
+from ...windows import IS_WINDOWS
 
 NAME = "alias"
 
@@ -11,16 +12,18 @@ def add_parser(subparsers, common):
         "shell",
         nargs="?",
         choices=list(SHELLS),
-        help="fish, zsh or bash (default: bash to print, every shell you use to install)",
+        help="fish, zsh or bash; powershell on windows (default: bash to print, every shell you use to install)",
     )
     p.add_argument(
-        "--install", action="store_true", help="add ~/.local/bin to that shell's PATH (fish: its own conf.d file)"
+        "--install",
+        action="store_true",
+        help="add ~/.local/bin to that shell's PATH (fish: its own conf.d file; windows: paws' Scripts folder)",
     )
 
 
 def run(args) -> int:
     if not args.install:
-        print(snippet(args.shell or "bash"))
+        print(snippet(args.shell or ("powershell" if IS_WINDOWS else "bash")))
         return 0
     shells = [args.shell] if args.shell else shells_in_use()
     if not shells:

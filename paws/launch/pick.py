@@ -4,6 +4,7 @@ import os
 import shutil
 from collections.abc import Mapping
 
+from ..windows import IS_WINDOWS
 from .argv import _SPECS, FALLBACK_ORDER
 
 _ENV_HINTS = (
@@ -45,6 +46,10 @@ _TERM_HINTS = (
 
 def current_terminal(env: Mapping[str, str] | None = None) -> str | None:
     env = os.environ if env is None else env
+    if IS_WINDOWS:
+        from ..windows import terminal
+
+        return terminal.current_terminal(env)
     for env_var, name in _ENV_HINTS:
         if env.get(env_var):
             return name
@@ -79,11 +84,19 @@ def saved_terminal() -> str | None:
 
 def installed_terminals(env: Mapping[str, str] | None = None) -> list[str]:
     env = os.environ if env is None else env
+    if IS_WINDOWS:
+        from ..windows import terminal
+
+        return [t for t in terminal.ORDER if terminal.installed(t, env)]
     return [t for t in FALLBACK_ORDER if shutil.which(t, path=env.get("PATH"))]
 
 
 def candidates(env: Mapping[str, str] | None = None) -> list[str]:
     env = os.environ if env is None else env
+    if IS_WINDOWS:
+        from ..windows import terminal
+
+        return terminal.candidates(env, [env.get("PAWS_TERMINAL"), saved_terminal() if env is os.environ else None])
     order = [
         env.get("PAWS_TERMINAL"),
         saved_terminal() if env is os.environ else None,

@@ -2,7 +2,7 @@
 # paws - single-command install, any distro.
 #
 # Run:
-#   curl -fsSL https://raw.githubusercontent.com/one-eyed-queen/paw/main/scripts/paws-install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/one-eyed-queen/paws/main/scripts/paws-install.sh | bash
 #
 # Picks the best install method for the machine it's run on: a real pacman
 # package (built with makepkg) on Arch and family, or the universal no-root
@@ -14,8 +14,8 @@
 # You can change it later in paws: Settings > Type.
 set -eu
 
-BASE_URL="${PAWS_URL:-https://example.invalid/paws/releases/download/v1.0.0}"
-VER="1.0.0"
+BASE_URL="${PAWS_URL:-https://github.com/one-eyed-queen/paws/releases/download/v1.0.127}"
+VER="1.0.127"
 
 if [ "$(id -u)" -eq 0 ]; then
     echo "paws-install: run as a normal user." >&2

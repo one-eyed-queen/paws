@@ -21,6 +21,10 @@ def paws_owns(lib_dir):
 def uninstall(sls: SlsInstall | None) -> bool:
     if sls is None:
         return False
+    if sls.kind == "windows":
+        from ..windows import port
+
+        port.unsupported()
     if sls.managed_by:
         raise SlsError(
             f"SLSsteam here is owned by {sls.managed_by} ({sls.lib_dir}); paws won't touch package files. "

@@ -1,11 +1,18 @@
 from __future__ import annotations
 
+import os
+
 from .. import sls as sls_module
 from ..util import pkgmgr
 from .result import CheckResult
 
 
 def sls_checks(sls) -> list:
+    if os.name == "nt":
+        from ..windows.port import UNDER_CONSTRUCTION
+
+        found = f"config={sls.config}" if sls else "no %AppData%\\SLSsteam\\config.yaml yet"
+        return [CheckResult(True, "Windows (under construction)", f"{found}. {UNDER_CONSTRUCTION}", "info")]
     headcrab = sls_module.headcrab.footprint()
     if not sls and not headcrab:
         return [

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
 
 from ... import launch
 from ... import settings
@@ -24,7 +26,10 @@ def run(args) -> int:
     if info["would_use"]:
         print(f"--window would use: {info['would_use']}  ({here})")
         print(f"tried in this order: {', '.join(info['candidates'])}")
-        print(f"command: {' '.join(info['argv'][:-1])} <script>")
+        if os.name == "nt":  # no wrapper script on windows, the argv is the whole command
+            print(f"command: {subprocess.list2cmdline(info['argv'])}")
+        else:
+            print(f"command: {' '.join(info['argv'][:-1])} <script>")
     else:
         print("--window: no terminal emulator found. set PAWS_TERMINAL=<name>, e.g. PAWS_TERMINAL=kitty")
     print("\nforce one with PAWS_TERMINAL=<name>.")

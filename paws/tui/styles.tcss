@@ -37,7 +37,7 @@ PaintedHeader {
 }
 
 AppHeader.-home {
-    height: 6;
+    height: 5;
 }
 
 #top-row {
@@ -281,6 +281,7 @@ ModalInput, Confirm, ModalInfo, ModalPaste {
 
 #detail-info {
     height: auto;
+    width: 100%;
 }
 
 #detail-img {
@@ -456,6 +457,23 @@ DropScreen {
     height: 1fr;
 }
 
+/* ---- remove screen ---- */
+#rm-search {
+    height: auto;
+    margin: 0 0 1 0;
+}
+#rm-search #in-rid {
+    width: 1fr;
+}
+#rm-search #b-rm-search {
+    width: auto;
+    margin-left: 1;
+}
+#rm-table {
+    height: 1fr;
+    margin: 0 0 1 0;
+}
+
 /* output boxes keep one height so nothing jumps */
 #set-out, #sec-out, #sls-out, #plug-out, #act-out, #remove-out, #add-hint, #bulk-out, #repair-out {
     min-height: 5;
@@ -488,11 +506,19 @@ DropScreen {
     height: auto;
     margin: 1 0 0 0;
 }
+#act-results {
+    height: 6;
+    margin: 0 0 1 0;
+}
 #act-top {
     height: auto;
 }
 #act-top #in-aid {
     width: 1fr;
+}
+#act-top #b-act-search {
+    width: auto;
+    margin-left: 1;
 }
 #act-top #b-act-go {
     width: auto;
@@ -821,6 +847,9 @@ ListItem.-highlight, ListView > ListItem.-highlight {
     padding: 1 2;
 }
 .-short #act-how {
+    display: none;
+}
+.-short #act-results {
     display: none;
 }
 .page > Horizontal {

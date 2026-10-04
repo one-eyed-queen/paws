@@ -5,7 +5,7 @@ import sys
 
 __all__ = ["main", "entrypoint", "build_parser"]
 
-_MENU_FLAGS = {"-w", "--window", "--no-update", "menu"}
+_MENU_FLAGS = {"-w", "--window", "--no-update", "--hold", "menu"}
 
 
 def __getattr__(name: str):
@@ -25,6 +25,8 @@ def main(argv: list[str] | None = None) -> int:
     if all(a in _MENU_FLAGS for a in argv):
         if "--no-update" in argv:
             os.environ["PAWS_NO_UPDATE"] = "1"
+        if "--hold" in argv:  # the windows start menu shortcut: keep the window open if paws fails
+            os.environ["PAWS_HOLD"] = "1"
         have_tty = sys.stdin.isatty() and sys.stdout.isatty()
         if "-w" in argv or "--window" in argv or (not have_tty and "menu" not in argv):
             from .window import open_window
@@ -57,4 +59,19 @@ def _remember_good_config():
 
 
 def entrypoint():
-    sys.exit(main())
+    from ..windows import utf8
+
+    if utf8.needed():
+        sys.exit(_hold(utf8.rerun(sys.argv[1:])))
+    sys.exit(_hold(main()))
+
+
+def _hold(code):
+    """windows: a window paws opened for itself would vanish on an error before you could read it"""
+    wanted = os.environ.get("PAWS_HOLD") or "--hold" in sys.argv[1:]
+    if code and wanted and not os.environ.get("PAWS_NO_UTF8_RESTART"):  # only the outer process waits, once
+        try:
+            input(f"\npaws exited with code {code}\npress Enter to close ")
+        except (EOFError, KeyboardInterrupt):
+            pass
+    return code

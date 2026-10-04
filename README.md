@@ -34,7 +34,7 @@ first. permission is usually granted!
 
 a little terminal app that looks after [SLSsteam](https://github.com/AceSLS/SLSsteam) for u. install it, keep it updated, add games, make tickets and poke the config, all from one place so u dont have to remember five different scripts.
 
-pas only edits the lines it needs to. ur comments, ur order and every value u didnt touch stay exactly how they were.
+paws only edits the lines it needs to. ur comments, ur order and every value u didnt touch stay exactly how they were.
 
 ## what it does
 
@@ -54,6 +54,7 @@ pas only edits the lines it needs to. ur comments, ur order and every value u di
 - **distros:** arch and family (manjaro, endeavouros, cachyos, garuda, blackarch, steamos), debian and family (ubuntu, mint, pop!_os, zorin, kali, parrot, mx), fedora and family (nobara, bazzite, rocky, alma), opensuse, void, gentoo, alpine (steam through flatpak), nixos (needs nix-ld so the python wheels run). image based ones (steamos, bazzite, silverblue) are fine, paws only ever writes to ur home
 - **package managers:** pacman (paru / yay for the AUR), apt, dnf, rpm-ostree, zypper, xbps, apk, emerge, and steam from flatpak or snap. paws finds ur steam, works out wich package owns SLSsteam and prints the right update or remove line. it never runs those for u
 - **desktops:** hyprland, sway, gnome, kde plasma, xfce, cinnamon, mate, lxqt, budgie, cosmic, deepin, wayland or x11. `paws --window` opens the terminal ur desktop ships with (konsole, ptyxis / gnome-terminal / kgx, xfce4-terminal, qterminal, mate-terminal ...) or kitty, foot, alacritty, wezterm, ghostty and friends
+- **windows:** 🚧 under construction (see below)
 - **terminals:** anything with normal colours. kitty and ghostty also get sharp pictures and the glass background, konsole / foot / wezterm get sharp header pictures where sixel is on, the rest get blocky ones. no nerd font? plain icons
 
 i built and tested it by hand on arch + hyprland + kitty. every other distro and desktop is only covered by the automated tests (and the docs of those distros), i didnt poke at them myself. if something looks off run `paws doctor`, it prints the distro, desktop, terminal, colours, locale and clipboard tool it sees. so if any disro has errors please open up the issue proprly explaining things in details i cannot 
@@ -73,6 +74,49 @@ it makes a private python env in `~/.local/share/paws`, links `paws` into `~/.lo
 if it says it cant make an environment, ur distro ships python without the venv module: `sudo apt install python3-venv` (debian, ubuntu, mint, pop, kali, parrot). on steamos, bazzite and other readonly systems it works as is.
 
 pick the look when u install: `./scripts/install.sh --riced` or `--minimal` (the one-liner installer takes the same flags, and both ask if u leave them out). riced is the full thing, background picture, banner, ascii art, mini games, desktop notifications. minimal is a plain terminal ui in ur own colours: no pictures, no mini games, no art, and notifications only inside the app. switch any time in Settings > Type, it applies right away. no steam yet? `paws doctor` prints the install line for ur package manager. `paws desktop` re-adds the icon and app menu entry (`--shortcut` puts one on ur desktop too, or tick it in Settings).
+
+## windows 🚧
+
+**windows support is under construction.** SLSsteam is linux only, and its windows ports (HubCapTools, and OpenValve which isnt out yet) need more info before paws can fully work with them, so some of it is stubbed for now.
+
+<details>
+<summary>windows notes (under construction, click to open)</summary>
+
+same paws, same menus, same commands. the only thing that changes is where stuff lives:
+
+- the port's config: `%AppData%\SLSsteam\config.yaml` (the normal SLSsteam config plus a few extra settings)
+- its tickets: `%AppData%\SLSsteam\cache`
+- paws' own settings, backups and undo journal: `%AppData%\paws`
+- steam: found through the registry, so a steam on another drive is fine
+
+install (no admin, needs python 3.10+ from python.org or `winget install Python.Python.3.12`, and git for `paws update`):
+
+    git clone https://github.com/one-eyed-queen/paws
+    cd paws
+    powershell -ExecutionPolicy Bypass -File scripts\install.ps1
+
+it makes a private python env in `%LOCALAPPDATA%\paws`, puts `paws` on ur PATH and adds it to the start menu. `-DryRun` shows what it would do first, `-Riced` / `-Minimal` pick the look. best in windows terminal, the old console works too.
+
+what works: adding / removing games in the config, keys, tickets, finding steam, `paws doctor`. 🚧 what's stubbed until we know more about HubCapTools and OpenValve (and get OpenValve's source): installing, updating and removing the port, and activating (making tickets) through it.
+
+#### how to download games
+
+paws does all of this for u when u add a game, but this is what it writes in config.yaml so u know:
+
+1. the depot keys go in `DecryptionKeys:`, one line per key: `appid: "key"`
+2. the game's store package goes in `AdditionalPackages:`
+3. the game's base AppId goes in `AppIds:`
+4. `UseWhitelist:` is set to `yes` (needed whenever u use AppIds)
+
+#### compatibility
+
+HubCapTools should work with every x64 steam. the oldest one tested is from january 21, the newest one is the latest beta, so if all goes well u can stay on the latest beta for a long time.
+
+#### common question
+
+**why not AdditionalApps for games i wanna download?** it overwrites the owner id, and that breaks ur downloads. treat any game u download with this as if u actually own it, so it goes in AppIds, not AdditionalApps.
+
+</details>
 
 ## using it (CLI)
 
@@ -100,6 +144,8 @@ everything paws adds is written in a journal, so removing a game takes out exact
 - [Deadboy666](https://github.com/Deadboy666)
 - [xamionex](https://github.com/xamionex)
 - [ke619](https://github.com/ke619)
+- [Arata12](https://github.com/Arata12)
+- [petar](https://git.petar.cc/petar)
 
 <p align="center">
   <img src="assets/moan.png" alt="" width="300">

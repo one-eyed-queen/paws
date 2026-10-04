@@ -1,11 +1,23 @@
 from __future__ import annotations
 
+import os
+
 from ..util import distro
 from ..util import pkgmgr
 from .result import CheckResult
 
 
 def os_checks(d=None) -> list:
+    if d is None and os.name == "nt":
+        import platform
+
+        found = pkgmgr.available()
+        return [
+            CheckResult(
+                True, "OS", f"Windows {platform.release()} {platform.machine()} ({platform.version()})", "info"
+            ),
+            CheckResult(True, "Package managers", ", ".join(found) if found else "none found", "info"),
+        ]
     d = d or distro.detect()
     out = [CheckResult(True, "OS", f"{d.name} ({d.id}, {d.family} family)", "info")]
     found = pkgmgr.available()

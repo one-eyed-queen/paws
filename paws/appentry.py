@@ -8,7 +8,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .launch.argv import CLASS
-from .paths import DATA_DIR
+from .paths import DATA_DIR, paws_home
+from .windows import IS_WINDOWS
 
 ICON_SRC = DATA_DIR / "img" / "paws-icon.png"
 SIZES = (16, 24, 32, 48, 64, 96, 128, 256, 512)
@@ -24,7 +25,15 @@ def _icon_value():
 
 
 def desktop_file() -> Path:
+    if IS_WINDOWS:
+        from .windows.folders import start_menu
+
+        return start_menu() / "paws.lnk"
     return share_dir() / "applications" / "paws.desktop"
+
+
+def ico_file() -> Path:
+    return paws_home() / "paws.ico"
 
 
 def icon_file(size: int) -> Path:
@@ -69,6 +78,10 @@ def desktop_dir() -> Path:
 
 
 def shortcut_file() -> Path:
+    if IS_WINDOWS:
+        from .windows.folders import desktop
+
+        return desktop() / "paws.lnk"
     return desktop_dir() / "paws.desktop"
 
 
@@ -81,6 +94,8 @@ def has_entry() -> bool:
 
 
 def add_shortcut() -> Result:
+    if IS_WINDOWS:
+        return _windows_link(shortcut_file(), "added the paws shortcut to your desktop")
     if not icon_file(256).exists():
         result = install()
         if not result.ok:
@@ -120,7 +135,43 @@ class Result:
     note: str = ""
 
 
+def _windows_exe() -> tuple[str, str]:
+    """what a .lnk runs: the paws.exe pip made, else python -m paws. --hold keeps the window open on an error"""
+    exe = shutil.which("paws") or str(Path(sys.executable).parent / "Scripts" / "paws.exe")
+    if Path(exe).exists():
+        return exe, "--hold"
+    return sys.executable, "-m paws --hold"
+
+
+def _windows_icon() -> Path | None:
+    target = ico_file()
+    if target.exists():
+        return target
+    try:
+        from PIL import Image
+
+        target.parent.mkdir(parents=True, exist_ok=True)
+        Image.open(ICON_SRC).convert("RGBA").save(target, sizes=[(n, n) for n in (16, 24, 32, 48, 64, 128, 256)])
+        return target
+    except Exception:
+        return None
+
+
+def _windows_link(link: Path, note: str) -> Result:
+    from .windows import shortcut
+
+    target, arguments = _windows_exe()
+    icon = _windows_icon()
+    try:
+        shortcut.make(link, target, arguments, icon, Path.home())
+    except (OSError, subprocess.SubprocessError) as error:
+        return Result(False, [], f"couldn't write {link}: {error}")
+    return Result(True, [p for p in (link, icon) if p], note)
+
+
 def install() -> Result:
+    if IS_WINDOWS:
+        return _windows_link(desktop_file(), "added paws to the start menu")
     if not ICON_SRC.exists():
         return Result(False, [], f"icon not found: {ICON_SRC}")
     written = []
@@ -150,6 +201,12 @@ def install() -> Result:
 
 def uninstall() -> Result:
     gone = []
+    if IS_WINDOWS:
+        for p in (desktop_file(), ico_file()):
+            if p.exists():
+                p.unlink()
+                gone.append(p)
+        return Result(True, gone, f"removed {len(gone)} file(s)")
     for p in [desktop_file(), *(icon_file(n) for n in SIZES)]:
         if p.exists():
             p.unlink()

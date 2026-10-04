@@ -19,6 +19,7 @@ from .depotcache import (
     remove_manifest,
 )
 from .find import find_steam
+from .library import installed_appids, installed_games
 from .launch import (
     SteamError,
     launch,
@@ -73,4 +74,6 @@ __all__ = [
     "inject_depot_keys",
     "existing_depot_ids",
     "remove_depot_keys",
+    "installed_appids",
+    "installed_games",
 ]

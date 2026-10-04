@@ -105,6 +105,9 @@ def check_client(
     network: bool = True,
 ) -> ClientCheck:
     result = ClientCheck(installed_tag=installed_tag, latest_tag=latest_tag)
+    if steam is not None and steam.kind == "windows":
+        result.error = "SLSsteam's SafeMode hash list only covers the linux client, nothing to compare on windows"
+        return result
     path = client_path(steam)
     if path is None:
         result.error = "no steamclient.so found under the Steam root"

@@ -32,7 +32,24 @@ def _run(tool, flags, text):
     return r.returncode == 0
 
 
+def _windows_copy(text):
+    """clip.exe takes utf-16 with a BOM as unicode, anything else it reads in the console codepage"""
+    try:
+        r = subprocess.run(
+            ["clip"],
+            input=("\ufeff" + text).encode("utf-16-le"),
+            capture_output=True,
+            timeout=5,
+            creationflags=0x08000000,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return r.returncode == 0
+
+
 def copy(text: str) -> bool:
+    if os.name == "nt" and _windows_copy(text):
+        return True
     for tool, flags in _tools():
         if shutil.which(tool) and _run(tool, flags, text):
             return True

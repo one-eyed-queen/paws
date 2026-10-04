@@ -10,9 +10,14 @@ from ... import sls as sls_module
 from ...sls.find import find_sls
 from ...steam.find import find_steam
 from ...util import pkgmgr
+from ...windows import IS_WINDOWS
+from ...windows.port import UNDER_CONSTRUCTION
 from ..widgets.header import AppHeader
 from ..widgets.jobbar import JobBar
 from ..widgets.modals import Confirm
+
+
+WINDOWS_NOTE = "[#9db0e0]" + UNDER_CONSTRUCTION + "[/]"
 
 
 class SlsScreen(Screen):
@@ -27,11 +32,14 @@ class SlsScreen(Screen):
         with Grid(id="sls-buttons"):
             yield Button("Install SLSsteam", id="b-install", variant="primary")
             yield Button("Uninstall SLSsteam", id="b-uninstall", variant="error")
-            yield Button("Install HeadCrab", id="b-hc-install", variant="primary")
-            yield Button("Uninstall HeadCrab", id="b-hc-uninstall", variant="error")
+            if not IS_WINDOWS:  # headcrab is a linux bash installer
+                yield Button("Install HeadCrab", id="b-hc-install", variant="primary")
+                yield Button("Uninstall HeadCrab", id="b-hc-uninstall", variant="error")
         yield JobBar(id="job")
         yield Static(
-            "[#9db0e0]any other build (a .zip or .7z, or a repo link): drop it on this window, paws asks first[/]",
+            WINDOWS_NOTE
+            if IS_WINDOWS
+            else "[#9db0e0]any other build (a .zip or .7z, or a repo link): drop it on this window, paws asks first[/]",
             id="sls-out",
             classes="panel",
         )
@@ -67,7 +75,9 @@ class SlsScreen(Screen):
             )
         elif sid == "b-uninstall":
             sls = find_sls()
-            if sls and sls.managed_by:
+            if sls and sls.kind == "windows":
+                self.set_out(WINDOWS_NOTE)
+            elif sls and sls.managed_by:
                 self.set_out(
                     f"SLSsteam is owned by {sls.managed_by} ({sls.lib_dir}). "
                     f"paws won't touch package files: remove it with {pkgmgr.remove_hint('slssteam', sls.managed_by)}."

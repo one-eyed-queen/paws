@@ -24,7 +24,16 @@ def apply_plan(plan: GamePlan, *, checked: set[str] | None = None) -> dict:
                 elif c.target == "config.vdf":
                     depot = c.detail.split()[-1]
                     if depot in plan.decryption_keys:
-                        vdf_keys[depot] = plan.decryption_keys[depot]
+                        key = plan.decryption_keys[depot]
+                        vdf_keys[depot] = key
+                        name = plan.names.get(depot) or plan.name or plan.appid
+                        # also written to SLSsteam's own DecryptionKeys section, not just
+                        # config.vdf: a private build can use it to resolve the current
+                        # manifest for a depot itself, instead of needing a pinned ManifestIds
+                        # value that goes stale the moment the depot updates
+                        key_line = config.render_item("DecryptionKeys", id=depot, key=key, name=name)
+                        if config.add_entry("DecryptionKeys", key_line)[0]:
+                            added.append(("DecryptionKeys", key_line))
                 elif c.target == "depotcache":
                     manifests.extend(m for m in plan.manifest_files if f"manifest_{m[0]}_{m[1]}" == c.detail)
                 applied += 1
@@ -49,7 +58,34 @@ def apply_plan(plan: GamePlan, *, checked: set[str] | None = None) -> dict:
     if added:
         undo.log("config.add", {"appid": plan.appid, "entries": added})
     undo.log("apply_plan", {"appid": plan.appid, "applied": applied, "errors": errors})
-    return {"applied": applied, "errors": errors, "added": len(added)}
+    nudged = bool(applied) and _nudge_steam(plan.appid)
+    return {"applied": applied, "errors": errors, "added": len(added), "nudged": nudged}
+
+
+def _nudge_steam(appid: str) -> bool:
+    """if steam is already running with the API pipe on, ask it to install the app right away
+    instead of waiting on a mechanism that may never fire for it.
+
+    SLSsteam only asks Valve for an app's depot/product info when it sees the app get ADDED
+    while it's already running (config.cpp's CConfig::setAdditionalApps skips that diff entirely
+    on firstLoad). an app that's already in AdditionalApps by the time steam starts never gets
+    that request and just sits at 0B forever. the API pipe's install command goes through
+    steam's own native IClientAppManager::installApp - same as the user clicking Install
+    themselves, and unlike steam://rungameid it doesn't try to RUN anything, so there's no
+    "missing executable" failure when nothing's downloaded yet.
+    """
+    if not appid or not appid.isdigit():
+        return False
+    try:
+        from ..config.scalars import get_scalar
+        from ..sls.api import write_api_command
+        from ..steam import is_running
+
+        if not is_running() or get_scalar("API") != "yes":
+            return False
+        return write_api_command(f"install|{appid}|0")
+    except Exception:
+        return False
 
 
 def _apply_cfg(plan, c):
@@ -62,8 +98,13 @@ def _apply_cfg(plan, c):
         if config.add_entry(section, line)[0]:  # a skipped duplicate isn't ours to undo
             out.append((section, line))
 
-    if kind == "AdditionalApps":
-        put("AdditionalApps", config.render_item("AdditionalApps", id=value, name=name))
+    if kind == "AppIds":
+        put("AppIds", config.render_item("AppIds", id=value, name=name))
+        # AppIds is a blacklist by default - without this, adding a game here would tell
+        # SLSsteam to EXCLUDE it, the opposite of what adding a game means
+        config.set_scalar("UseWhitelist", "yes")
+    elif kind == "AdditionalPackages":
+        put("AdditionalPackages", config.render_item("AdditionalPackages", id=value, name=name))
     elif kind == "ManifestIds":
         depot, _, manifest = value.partition(":")
         put("ManifestIds", config.render_item("ManifestIds", depot=depot, manifest=manifest, name=name))

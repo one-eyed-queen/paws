@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import textwrap
 from pathlib import Path
 
 from textual import on
@@ -11,14 +12,33 @@ from textual.widgets import Button, DataTable, Input, Static
 from ... import games
 from ... import manifest
 from ... import sources
+from ..widgets import hires
 from ..widgets.header import AppHeader
 from ..widgets.modals import ModalInput
+
+DETAIL_COLS = 34
+DETAIL_TEXT_WIDTH = 36  # #add-detail is 40 cols wide minus its padding/border
+DETAIL_MIN_WIDTH = 96  # below this the results table needs the room more than the detail panel does
 
 
 class AddGameScreen(Screen):
     DEFAULT_CLASSES = "page"
 
     BINDINGS = [("escape", "pop", "back"), ("space", "toggle_row", "toggle selected row")]
+
+    def on_resize(self, event=None):
+        try:
+            self.query_one("#add-detail").display = self.size.width >= DETAIL_MIN_WIDTH
+        except Exception:
+            pass
+
+    def background_cols(self):
+        # keep the wallpaper off the detail panel so its real-graphics picture doesn't have
+        # to share screen space with another kitty image underneath it
+        try:
+            return self.query_one("#add-left").region.right
+        except Exception:
+            return None
 
     def compose(self) -> ComposeResult:
         yield AppHeader("Add a game", id="hdr")
@@ -35,7 +55,14 @@ class AddGameScreen(Screen):
                 yield Static("", id="add-hint", classes="panel")
             with VerticalScroll(id="add-detail", classes="panel"):
                 yield Static("", id="detail-info")
-                yield Static("", id="detail-img")
+                if hires.available():
+                    self._img_widget = hires.picture(None, id="detail-img")
+                    self._img_widget.styles.width = DETAIL_COLS
+                    self._img_widget.styles.height = "auto"
+                    yield self._img_widget
+                else:
+                    self._img_widget = None
+                    yield Static("", id="detail-img")
         with Horizontal(id="add-buttons"):
             yield Button("Add selected game", id="b-add", variant="primary")
             yield Button("Apply (checked)", id="b-apply")
@@ -48,6 +75,9 @@ class AddGameScreen(Screen):
         self._checked: set[int] = set()
         self._results: list = []
         self._detail: object | None = None
+        self._detail_timer = None
+        self._img_key = None
+        self._pending_url = ""
         self.query_one("#in-query", Input).focus()
 
     @on(Button.Pressed, "#b-bulk")
@@ -69,6 +99,10 @@ class AddGameScreen(Screen):
         self.query_one("#detail-img", Static).update(text)
 
     def _show_results(self, results):
+        # a previous add leaves _plan set, which routes row events to the checklist-toggle
+        # branch instead of _inspect() - starting a new search means going back to browsing
+        self._plan = None
+        self._checked = set()
         self._results = results
         t = self._table()
         t.clear(columns=True)
@@ -76,7 +110,9 @@ class AddGameScreen(Screen):
         for r in results:
             price = f"[#9db0e0]{r.price}[/]" if getattr(r, "price", "") else ""
             t.add_row(str(r.appid), r.name or str(r.appid), r.source, price)
-        self.set_hint(f"{len(results)} result(s). Hover + Enter to inspect, then 'Add selected game'.")
+        self.set_hint(f"{len(results)} result(s). Arrow keys to browse, Enter to inspect + add.")
+        if results:
+            t.focus()
 
     def on_input_submitted(self, ev: Input.Submitted):
         if ev.input is not None and ev.input.id == "in-query":
@@ -148,13 +184,30 @@ class AddGameScreen(Screen):
         if not path.exists():
             self.set_hint(f"[red]not found:[/red] {path}")
             return
-        b = manifest.ManifestBundle()
-        if path.suffix.lower() in (".zip", ".7z"):
-            b.add_archive(path, Path.home() / ".cache" / "paws")
-        else:
-            b.add_file(path)
-        flat = b.flatten()
+        # a lone .key (or any file with no AppId of its own) needs to know what game it's
+        # for - if one's already typed in the search box, use it, so the game itself gets
+        # added too instead of only the file's own (appid-less) data landing somewhere
+        typed = self.query_one("#in-query", Input).value.strip()
+        hint_appid = int(typed) if typed.isdigit() else None
+        try:
+            b = manifest.ManifestBundle(appid=hint_appid)
+            if path.suffix.lower() in (".zip", ".7z"):
+                b.add_archive(path, Path.home() / ".cache" / "paws")
+            else:
+                b.add_file(path)
+            flat = b.flatten()
+        except Exception as e:
+            self.set_hint(f"[red]{path.name}: {e}[/red]")
+            return
         appid = str(b.appid or (flat["app_ids"][0] if flat["app_ids"] else ""))
+        if not appid:
+            # a lone .manifest or .key has no appid of its own - it needs the matching .lua
+            # (or the game's own AppId) alongside it, otherwise there's nothing to add yet
+            self.set_hint(
+                f"[red]{path.name} has no AppId in it[/red] - drop its matching .lua "
+                "alongside it, or a .zip with both, or type the AppId and search first."
+            )
+            return
         self.query_one("#in-query", Input).value = appid
         self._render_plan(games.plan_from_bundle(b))
 
@@ -166,13 +219,21 @@ class AddGameScreen(Screen):
             (self._checked.discard if i in self._checked else self._checked.add)(i)
             self._draw()
         elif 0 <= i < len(self._results):
+            self._cancel_detail_timer()
             self._inspect(self._results[i])
         ev.stop()
 
     @on(DataTable.RowHighlighted)
     def _on_hi(self, ev):
         if self._plan is None and ev.cursor_row is not None and 0 <= ev.cursor_row < len(self._results):
-            self._inspect(self._results[ev.cursor_row])
+            r = self._results[ev.cursor_row]
+            self._cancel_detail_timer()
+            self._detail_timer = self.set_timer(0.2, lambda: self._inspect(r))
+
+    def _cancel_detail_timer(self):
+        if self._detail_timer is not None:
+            self._detail_timer.stop()
+            self._detail_timer = None
 
     def _inspect(self, r):
         try:
@@ -181,21 +242,40 @@ class AddGameScreen(Screen):
             gi = r
         self._detail = gi
         box = f"[b]{gi.appid}[/b]  {gi.name}" if gi.name else f"[b]{gi.appid}[/b]"
-        metadata = []
+        meta_lines = []
         if gi.developers:
-            metadata.append(f"[#9db0e0]by[/] {', '.join(gi.developers[:3])}")
+            meta_lines.append(f"[#9db0e0]by[/] {', '.join(gi.developers[:3])}")
         if gi.price or gi.free:
-            metadata.append("[green]free[/green]" if gi.free else f"[green]{gi.price}[/green]")
-        metadata.append(f"[#9db0e0]{len(gi.dlcs)} dlc(s), {len(gi.packages)} package(s)[/]")
+            meta_lines.append("[green]free[/green]" if gi.free else f"[green]{gi.price}[/green]")
+        meta_lines.append(f"[#9db0e0]{len(gi.dlcs)} dlc(s), {len(gi.packages)} package(s)[/]")
+        metadata = "\n".join(f"  ┊ {m}" for m in meta_lines)
         desc = gi.short_description or gi.about or "no description from this source - use Search to pull store text."
-        desc = "\n".join(f"  {line}" for line in desc.splitlines()[:20])
-        self.set_detail(f"{box}\n   ┊ {'  ·  '.join(metadata)}\n\n{desc}")
-        image = getattr(gi, "header_image", "") or ""
-        if image:
-            from .. import imgpreview
+        wrapped = [line for para in desc.splitlines()[:20] for line in textwrap.wrap(para, DETAIL_TEXT_WIDTH) or [""]]
+        desc = "\n".join(f"  {line}" for line in wrapped[:24])
+        self.set_detail(f"{box}\n{metadata}\n\n{desc}")
+        self._show_image(getattr(gi, "header_image", "") or "")
 
-            art = imgpreview.cached_build(image, 40)
-            self.set_image(art or "[#9db0e0](image unavailable)[/]")
+    def _show_image(self, url):
+        from .. import imgpreview
+
+        if self._img_widget is None:
+            self.set_image((imgpreview.cached_build(url, 34) or "") if url else "")
+            return
+        # let the widget open and fit the file itself (styles.width fixed, height "auto") -
+        # building our own pixel-perfect canvas here was the source of three separate bugs
+        self._pending_url = url
+        self.call_after_refresh(self._apply_image, url)
+
+    def _apply_image(self, url):
+        from .. import imgpreview
+
+        if url != self._pending_url:
+            return  # superseded by a newer selection while this was waiting to apply
+        path = imgpreview.cached_path(url) if url else None
+        if path == self._img_key:
+            return
+        self._img_key = path
+        self._img_widget.image = path
 
     def _add_selected(self):
         if self._detail is None and self._results:

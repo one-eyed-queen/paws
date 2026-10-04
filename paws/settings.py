@@ -6,6 +6,7 @@ import time
 from pathlib import Path
 
 from .features import FEATURES as _FEATURES
+from .paths import paws_home
 
 DEFAULTS: dict = {
     "nsfw": False,
@@ -25,7 +26,7 @@ DEFAULTS: dict = {
 
 
 def cfg_dir() -> Path:
-    return Path(os.environ.get("PAWS_CONFIG_DIR", Path.home() / ".config/paws"))
+    return Path(os.environ.get("PAWS_CONFIG_DIR") or paws_home())
 
 
 def file_path() -> Path:
@@ -57,7 +58,7 @@ def is_minimal() -> bool:
 
 def _launch_cmd(value):
     v = str(value).strip() if value else ""
-    return DEFAULTS["launch_cmd"] if v in ("", "nyah", "paw") else v
+    return DEFAULTS["launch_cmd"] if v in ("", "nyah", "paws") else v
 
 
 def load() -> dict:

@@ -20,6 +20,8 @@ def _package_version(so):
 
 
 def installed_version(sls: SlsInstall | None) -> str | None:
+    if sls is not None and sls.kind == "windows":
+        return "windows port (under construction)"
     if sls is None or sls.lib_dir is None:
         return None
     if sls.managed_by:

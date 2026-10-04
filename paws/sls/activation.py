@@ -108,6 +108,11 @@ def activate(
     if not sls or not sls.config:
         result["error"] = "SLSsteam is not installed"
         return result
+    if sls.kind == "windows":
+        from ..windows.port import UNDER_CONSTRUCTION
+
+        result["error"] = UNDER_CONSTRUCTION
+        return result
 
     ensure_subscribed(appid)
 

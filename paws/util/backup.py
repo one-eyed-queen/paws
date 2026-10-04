@@ -4,7 +4,9 @@ import shutil
 import time
 from pathlib import Path
 
-BACKUP_ROOT = Path.home() / ".config/paws/backups"
+from ..paths import paws_home
+
+BACKUP_ROOT = paws_home() / "backups"
 
 
 def age(path: Path) -> str:

@@ -55,7 +55,24 @@ def cell() -> tuple[float, float]:
     if live is None:
         return float(CELL[0]), float(CELL[1])
     CELL = (max(1, round(live[0])), max(1, round(live[1])))
+    _sync_probe(CELL)
     return live
+
+
+def _sync_probe(size: tuple[int, int]) -> None:
+    # textual_image probes the terminal's cell size once at startup and caches it forever
+    # (textual_image._terminal.probe_terminal). if the real cell size changes later - a kitty
+    # zoom, say - our own live measurement and its stale cache disagree on how many pixels a
+    # cell holds, and images it sends get scaled against the wrong number. keep its cache
+    # pointed at whatever we just measured.
+    try:
+        import textual_image._terminal as t
+
+        caps = getattr(t.probe_terminal, "_result", None)
+        if caps is not None and tuple(caps.cell_size) != size:
+            t.probe_terminal._result = caps._replace(cell_size=t.CellSize(*size))
+    except Exception:
+        pass
 
 
 def available() -> bool:

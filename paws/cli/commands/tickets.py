@@ -14,15 +14,15 @@ def add_parser(subparsers, common):
     p = subparsers.add_parser(NAME, help="list cached tickets", parents=[common])
     sp = p.add_subparsers(dest="tickets_command")
 
-    pack = sp.add_parser("pack", parents=[common], help="pack both tickets of an app into one paw1e string")
+    pack = sp.add_parser("pack", parents=[common], help="pack both tickets of an app into one paws1e string")
     pack.add_argument("appid", help="pack whatever cache files exist for this app (encrypted + normal)")
     pack.add_argument("--no-copy", action="store_true", help="don't put the string on the clipboard, just print it")
     pack.add_argument(
         "--passphrase-file", metavar="FILE", help="read the passphrase from the first line of FILE ('-' = stdin)"
     )
 
-    unpack = sp.add_parser("unpack", parents=[common], help="unpack a paw1e string back into the ticket cache")
-    unpack.add_argument("data", help="the paw1e.<base85> encrypted string")
+    unpack = sp.add_parser("unpack", parents=[common], help="unpack a paws1e string back into the ticket cache")
+    unpack.add_argument("data", help="the paws1e.<base85> encrypted string")
     unpack.add_argument(
         "--passphrase-file", metavar="FILE", help="read the passphrase from the first line of FILE ('-' = stdin)"
     )
@@ -62,12 +62,12 @@ def run(args) -> int:
             print(f"paws: {e}", file=sys.stderr)
             return 1
         if args.json:
-            print(json.dumps({"appid": args.appid, "paw1e": s}))
+            print(json.dumps({"appid": args.appid, "paws1e": s}))
             return 0
         if args.no_copy or not clipboard.copy(s):
             print(s)
         else:
-            print(f"packed {args.appid} to the clipboard as a paw1e string ({len(s)} chars; keep the passphrase!)")
+            print(f"packed {args.appid} to the clipboard as a paws1e string ({len(s)} chars; keep the passphrase!)")
         return 0
 
     if subparsers == "unpack":

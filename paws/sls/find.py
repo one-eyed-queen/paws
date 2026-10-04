@@ -4,6 +4,7 @@ from pathlib import Path
 
 from ..paths import HOME, config_dirs
 from ..util import fs, pkgmgr
+from ..windows import IS_WINDOWS
 from .model import SlsInstall
 
 SYSTEM_LIB_DIRS = (
@@ -57,6 +58,10 @@ def _desktop_injects_sls(sls):
 
 
 def find_sls(config: Path | None = None) -> SlsInstall | None:
+    if IS_WINDOWS:
+        from ..windows import port
+
+        return port.find(config)
     sls = SlsInstall()
 
     candidates = [

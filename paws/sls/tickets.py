@@ -4,7 +4,8 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from ..paths import HOME
+from ..paths import HOME, default_config_dir
+from ..windows import IS_WINDOWS
 from .find import find_sls
 
 
@@ -38,11 +39,15 @@ class Ticket:
         return f"steamId: {self.steam_id}\n{self.key}: {self.payload}\n"
 
 
+def _fallback_cache() -> Path:
+    return default_config_dir() / "cache" if IS_WINDOWS else HOME / ".config/SLSsteam/cache"
+
+
 def cache_dir() -> Path | None:
     sls = find_sls()
     if sls and sls.cache:
         return Path(sls.cache)
-    d = HOME / ".config/SLSsteam/cache"
+    d = _fallback_cache()
     return d if d.exists() else None
 
 
@@ -87,7 +92,7 @@ def validate_payload(payload: str) -> bool:
 
 
 def _ensure_cache_dir():
-    d = cache_dir() or (HOME / ".config/SLSsteam/cache")
+    d = cache_dir() or _fallback_cache()
     d.mkdir(parents=True, exist_ok=True)
     return d
 

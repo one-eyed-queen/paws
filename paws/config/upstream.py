@@ -47,9 +47,12 @@ def installed_template_keys(lib_dir: Path | None) -> tuple[str, ...] | None:
         return None
 
 
+KNOWN_VALID = frozenset({"AdditionalDepots", "AdditionalPackages", "DecryptionKeys", "CloudProxies", "InventoryItems"})
+
+
 def diff(upstream_keys: tuple[str, ...]) -> tuple[list[str], list[str]]:
     bundled = ordered_keys()
     bundled_set, upstream_set = set(bundled), set(upstream_keys)
     added = [k for k in upstream_keys if k not in bundled_set]
-    removed = [k for k in bundled if k not in upstream_set]
+    removed = [k for k in bundled if k not in upstream_set and k not in KNOWN_VALID]
     return added, removed

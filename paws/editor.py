@@ -15,7 +15,8 @@ from .config import heal
 from .util import backup
 
 ORDER = ("nvim", "nano")
-FALLBACKS = ("vim", "vi")
+FALLBACKS = ("vim", "vi", "notepad") if os.name == "nt" else ("vim", "vi")
+NO_LINE_ARG = ("notepad",)  # would open a file literally named +12
 
 
 def find_editor() -> list[str] | None:
@@ -94,7 +95,8 @@ def open_in_editor(path: Path, line: int | None = None, suspend=None, run=None) 
         return Edited(False, error="no editor found: install neovim or nano (or set the `editor` setting)")
     bak = backup.backup_file(path)
     before = path.read_text() if path.exists() else ""
-    command = [*argv, *([f"+{line}"] if line else []), str(path)]
+    jump = line and Path(argv[0]).stem.lower() not in NO_LINE_ARG
+    command = [*argv, *([f"+{line}"] if jump else []), str(path)]
     try:
         with suspend() if suspend is not None else nullcontext():
             run(command)

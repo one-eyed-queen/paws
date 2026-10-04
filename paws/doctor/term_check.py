@@ -11,6 +11,10 @@ from .result import CheckResult
 
 
 def _session(env):
+    if os.name == "nt":
+        import platform
+
+        return f"Windows {platform.release()} ({platform.version()})"
     kind = env.get("XDG_SESSION_TYPE") or (
         "wayland" if env.get("WAYLAND_DISPLAY") else "x11" if env.get("DISPLAY") else ""
     )
@@ -81,6 +85,8 @@ def term_checks(env: Mapping[str, str] | None = None) -> list:
         )
     )
 
+    if os.name == "nt":  # clip.exe ships with windows
+        return out
     wayland = (env.get("XDG_SESSION_TYPE") == "wayland") or bool(env.get("WAYLAND_DISPLAY"))
     have = [t for t in (("wl-copy",) if wayland else ("xclip", "xsel")) if shutil.which(t)]
     if not have and not (wayland and shutil.which("xclip")):

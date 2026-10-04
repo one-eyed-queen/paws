@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 from ...config import heal
-from ...config.io import write_now
+from ...config.io import write_lf, write_now
 from ...config.seed import default_config_text, fill_missing, missing_keys
 from ...config.where import find_config
 from ...paths import default_config_dir
@@ -46,7 +46,7 @@ def check_config_missing() -> list[Problem]:
     def fix() -> str:
         target = default_config_dir() / "config.yaml"
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(default_config_text())
+        write_lf(target, default_config_text())
         return f"created {target}"
 
     return [
@@ -92,7 +92,7 @@ def check_config_broken(config_path: Path) -> list[Problem]:
             config_path.write_bytes(good.read_bytes())
             return f"restored {good.name}"
         aside = move_aside(config_path)
-        config_path.write_text(default_config_text())
+        write_lf(config_path, default_config_text())
         return f"no good backup: started a fresh config (the broken one is {aside.name})"
 
     note = (
@@ -127,13 +127,20 @@ def check_config_values(config_path: Path, online: bool = False) -> list[Problem
             )
         )
     if stuck:
+
+        def comment_out() -> str:
+            backup.backup_file(config_path)
+            write_now(config_path, heal.comment_out_stuck(safe_read(config_path) or text, stuck))
+            lines = ", ".join(str(f.line) for f in stuck[:8])
+            return f"commented out {len(stuck)} line(s) ({lines}); nothing deleted, backup kept"
+
         out.append(
             Problem(
                 "config.values",
                 f"{len(stuck)} value(s) in config.yaml don't fit their key",
                 "; ".join(str(f) for f in stuck[:8]),
-                "paws can't guess the right value: check those lines",
-                None,
+                "paws can't guess the right value, but can comment the line(s) out so SLSsteam ignores them",
+                comment_out,
                 "error",
             )
         )
@@ -268,7 +275,7 @@ def check_config_permissions(config_path: Path) -> list[Problem]:
                 lambda: _chmod(config_path, mode | stat.S_IWUSR),
             )
         )
-    elif mode & stat.S_IWOTH:
+    elif mode & stat.S_IWOTH and os.name != "nt":  # windows reports every writable file as 0o666
         problems.append(
             Problem(
                 "config.world-writable",

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import re
-import zipfile
 from pathlib import Path
 
 from ..paths import HOME
@@ -45,19 +44,22 @@ class ManifestBundle:
         elif sfx == ".key":
             self.add_key_file(path)
 
-    def add_archive(self, zip_path: Path, workdir: Path):
-        with zipfile.ZipFile(zip_path) as z:
-            matched = []
-            for info in z.infolist():
-                nm = Path(info.filename)
-                if nm.suffix.lower() in (".lua", ".manifest", ".key"):
-                    matched.append(nm)
-            if not matched:
-                return
-            extract_root = workdir / f"unz-{zip_path.stem}"
-            for nm in matched:
-                z.extract(str(nm), extract_root)
-                self.add_file(extract_root / nm)
+    def add_archive(self, archive_path: Path, workdir: Path):
+        # .zip and .7z both show up in the wild for these bundles; reuse the same extractor
+        # sls/archive.py already relies on (py7zr, falling back to a system 7z binary)
+        from ..sls.archive import extract_archive
+
+        extract_root = workdir / f"unz-{archive_path.stem}"
+        extract_archive(archive_path, extract_root)
+        # community bundles are often named after the game's own appid (e.g. "620.zip") - set
+        # it before processing the files inside so a lone .key with no other appid source (no
+        # .lua alongside it) still gets attributed correctly. never overrides an appid already
+        # given explicitly (e.g. one typed in the search box)
+        if self.appid is None and archive_path.stem.isdigit():
+            self.appid = int(archive_path.stem)
+        for path in sorted(extract_root.rglob("*")):
+            if path.is_file() and path.suffix.lower() in (".lua", ".manifest", ".key"):
+                self.add_file(path)
 
     def flatten(self):
         depots = {}
@@ -89,7 +91,7 @@ def parse_key_text(content: str, appid: int) -> dict:
 
 def load_bundle(path: Path) -> ManifestBundle:
     bundle = ManifestBundle()
-    if path.suffix.lower() == ".zip":
+    if path.suffix.lower() in (".zip", ".7z"):
         bundle.add_archive(path, HOME / ".cache/paws")
     else:
         bundle.add_file(path)

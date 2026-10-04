@@ -34,6 +34,8 @@ def fetch_script():
 
 def run_script(script):
     """headcrab asks things and shows progress, so it gets the terminal"""
+    if os.name == "nt":  # bash.exe here is WSL's: it would install into the linux VM, not this windows steam
+        raise SlsError("HeadCrab is a linux installer, it can't set up steam on windows")
     if not shutil.which("bash"):
         raise SlsError("bash isn't installed")
     return subprocess.run(["bash", str(script)], cwd=script.parent, env=dict(os.environ)).returncode

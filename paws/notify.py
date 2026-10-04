@@ -13,7 +13,7 @@ URGENCY = ("low", "normal", "critical")
 
 
 def graphical() -> bool:
-    return bool(os.environ.get("WAYLAND_DISPLAY") or os.environ.get("DISPLAY"))
+    return os.name == "nt" or bool(os.environ.get("WAYLAND_DISPLAY") or os.environ.get("DISPLAY"))
 
 
 def disabled() -> bool:
@@ -21,6 +21,10 @@ def disabled() -> bool:
 
 
 def backend() -> str | None:
+    if os.name == "nt":
+        from .windows import toast
+
+        return "powershell" if toast.available() else None
     if shutil.which("notify-send"):
         return "notify-send"
     if shutil.which("gdbus"):
@@ -36,6 +40,10 @@ def _gv_string(text):
 def command(title: str, body: str = "", urgency: str = "normal", which: str | None = None) -> list[str] | None:
     which = which or backend()
     urgency = urgency if urgency in URGENCY else "normal"
+    if which == "powershell":
+        from .windows import toast
+
+        return toast.command(title, body, urgency, TIMEOUT_MS)
     icon = str(ICON) if ICON.exists() else "dialog-information"
     if which == "notify-send":
         from .settings import get_setting
@@ -65,6 +73,9 @@ def send(title: str, body: str = "", urgency: str = "normal") -> bool:
     if argv is None:
         return False
     try:
+        if os.name == "nt":  # the balloon has to stay up a moment, don't make the caller wait for it
+            subprocess.Popen(argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=0x08000000)
+            return True
         r = subprocess.run(
             argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5, start_new_session=True
         )

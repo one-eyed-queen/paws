@@ -12,9 +12,9 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from .tickets import Ticket, list_tickets, validate_payload
 
-MAGIC_ENC = "paw1e."
-MAGIC_LEGACY = "paw1."
-_HEADER = b"paw1\x02"
+MAGIC_ENC = "paws1e."
+MAGIC_LEGACY = "paws1."
+_HEADER = b"paws1\x02"
 _VERSION = 2
 BIND_NS = uuid.NAMESPACE_URL
 _RECOGNISED = ("encryptedTicket", "ticket")
@@ -74,11 +74,11 @@ def pack_tickets(appid: str, passphrase: str) -> str:
 
 def _decode(data, passphrase):
     if not data:
-        raise ValueError("that isn't a paws ticket string (it starts with paw1e.)")
+        raise ValueError("that isn't a paws ticket string (it starts with paws1e.)")
     if data.startswith(MAGIC_LEGACY):
-        raise ValueError("that's an old paw1 string with no passphrase protection - make a new backup instead")
+        raise ValueError("that's an old paws1 string with no passphrase protection - make a new backup instead")
     if not data.startswith(MAGIC_ENC):
-        raise ValueError("that isn't a paws ticket string (it starts with paw1e.)")
+        raise ValueError("that isn't a paws ticket string (it starts with paws1e.)")
     if not passphrase:
         raise ValueError("passphrase needed to open this backup")
     try:

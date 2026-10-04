@@ -4,10 +4,12 @@ import json
 import os
 from pathlib import Path
 
+from ....paths import paws_home
+
 
 class HighScores:
     def __init__(self, path: Path | None = None):
-        self.path = path or (Path(os.environ.get("PAWS_CONFIG_DIR", Path.home() / ".config/paws")) / "highscores.json")
+        self.path = path or (Path(os.environ.get("PAWS_CONFIG_DIR") or paws_home()) / "highscores.json")
 
     def _load(self):
         try:

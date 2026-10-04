@@ -42,7 +42,7 @@ PAWS_THEME = Theme(
 )
 
 
-class PawApp(App):
+class PawsApp(App):
     TITLE = "paws"
     SUB_TITLE = "SLSsteam manager"
     CSS_PATH = "styles.tcss"
@@ -308,7 +308,7 @@ class PawApp(App):
 
 
 def main() -> int:
-    PawApp().run()
+    PawsApp().run()
     return 0
 
 

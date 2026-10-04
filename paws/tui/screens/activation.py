@@ -9,6 +9,7 @@ from textual.containers import Grid, Horizontal, Vertical
 from textual.screen import Screen
 from textual.widgets import Button, DataTable, Input, RadioButton, RadioSet, Static, TabbedContent, TabPane
 
+from ... import steam
 from ...sls import activation
 from ...sls import encode as encode_mod
 from ...sls import tickets
@@ -58,8 +59,10 @@ class ActivationScreen(Screen):
                         id="act-blurb",
                     )
                     with Horizontal(id="act-top"):
-                        yield Input(placeholder="AppId (e.g. 480)", id="in-aid")
+                        yield Input(placeholder="AppId or game name (only games you own)", id="in-aid")
+                        yield Button("Search", id="b-act-search")
                         yield Button("Make tickets", id="b-act-go", variant="primary")
+                    yield DataTable(id="act-results", cursor_type="row", zebra_stripes=True)
                     with RadioSet(id="act-kind"):
                         for i, (_, label) in enumerate(KINDS):
                             yield RadioButton(label, value=i == 0)
@@ -82,6 +85,8 @@ class ActivationScreen(Screen):
 
     def on_mount(self):
         self.query_one("#in-aid", Input).focus()
+        self.query_one("#act-results", DataTable).add_columns("appid", "name")
+        self._owned_results: list = []
         self._draw_tickets()
 
     def on_screen_resume(self):
@@ -157,6 +162,37 @@ class ActivationScreen(Screen):
             return None
         return found[rk]
 
+    def _search_owned(self):
+        q = self.query_one("#in-aid", Input).value.strip()
+        if not q:
+            self.set_out("type a game name or AppId first")
+            return
+        games = steam.installed_games()  # local only: appmanifest files, no store lookup needed
+        if q.isdigit():
+            hits = [(q, games[q])] if q in games else []
+        else:
+            ql = q.lower()
+            hits = sorted((a, n) for a, n in games.items() if ql in n.lower())
+        self._owned_results = hits
+        t = self.query_one("#act-results", DataTable)
+        t.clear()
+        for appid, name in hits:
+            t.add_row(appid, name)
+        if hits:
+            self.set_out(f"{len(hits)} owned game(s) matched. pick one to fill the AppId in.")
+            t.focus()
+        else:
+            self.set_out("[#9db0e0]no match in your installed library[/] (only games you actually have show up)")
+
+    @on(DataTable.RowSelected, "#act-results")
+    def _picked_owned(self, ev: DataTable.RowSelected):
+        rk = ev.cursor_row
+        if rk is None or rk >= len(self._owned_results):
+            return
+        appid = self._owned_results[rk][0]
+        self.query_one("#in-aid", Input).value = appid
+        self.set_out(f"AppId {appid} filled in - press Make tickets when ready")
+
     @on(Button.Pressed)
     def _pressed(self, ev):
         sid = ev.button.id
@@ -175,7 +211,7 @@ class ActivationScreen(Screen):
             self._pack_selected()
         elif sid == "b-unpack":
             self.app.push_screen(
-                ModalInput("Paste the paw1e string (your own backup)", "Restore pair"), self._restore_tickets
+                ModalInput("Paste the paws1e string (your own backup)", "Restore pair"), self._restore_tickets
             )
         elif sid == "b-detail":
             self._detail_selected()
@@ -183,6 +219,8 @@ class ActivationScreen(Screen):
             self._use_selected()
         elif sid == "b-del":
             self._delete_selected()
+        elif sid == "b-act-search":
+            self._search_owned()
 
     @on(Input.Submitted, "#in-aid")
     def _submit(self):
@@ -335,7 +373,7 @@ class ActivationScreen(Screen):
         ok = clipboard.copy(s)
         self.app.push_screen(ModalInfo(s, title=f"{self._pack_appid}: your backup string (passphrase-locked)"))
         self.set_out(
-            f"{'copied' if ok else 'copy failed'} paw1e string for {self._pack_appid} ({len(s)} chars) - keep the passphrase"
+            f"{'copied' if ok else 'copy failed'} paws1e string for {self._pack_appid} ({len(s)} chars) - keep the passphrase"
         )
 
     def _restore_tickets(self, text):

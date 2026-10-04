@@ -148,7 +148,7 @@ class Underlay:
             self._hide()
             return
         size = self.app.size
-        cols, rows = size.width, size.height
+        cols, rows = self._region(scr, size)
         now = time.monotonic()
         if self.bg_size == (cols, rows) and self.bg_id is not None:
             if not self.bg_shown:
@@ -164,6 +164,20 @@ class Underlay:
                 self._send(place_sequence(self.bg_id, cols, rows))
             return
         await self._apply(cols, rows)
+
+    def _region(self, scr, size):
+        # a screen can shrink the background to its left-hand columns (e.g. to leave a plain
+        # terminal area behind a real graphics widget elsewhere on the screen, which the
+        # wallpaper's own kitty image would otherwise sit underneath/compete with) by defining
+        # background_cols() -> int
+        limit = getattr(scr, "background_cols", None)
+        if callable(limit):
+            try:
+                limit = limit()
+            except Exception:
+                limit = None
+        cols = limit if isinstance(limit, int) and 0 < limit < size.width else size.width
+        return cols, size.height
 
     def _hide(self):
         if self.bg_id is not None and self.bg_shown:

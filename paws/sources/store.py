@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import re
-import urllib.request
+import urllib.parse
 
 from .base import GameInfo, SourceError, get_json
+
+HEADER_CDN = "https://cdn.cloudflare.steamstatic.com/steam/apps/{appid}/header.jpg"
 
 BLACKLIST = [
     "soundtrack",
@@ -12,6 +14,7 @@ BLACKLIST = [
     "artbook",
     "graphic novel",
     "demo",
+    "beta",
     "server",
     "dedicated server",
     "tool",
@@ -33,13 +36,16 @@ def search_store(term: str, *, cc: str = "us", l: str = "en") -> list[GameInfo]:
         name = it.get("name", "")
         if any(re.search(rf"\b{re.escape(k)}\b", name.lower()) for k in BLACKLIST):
             continue
+        appid = str(it["id"])
         out.append(
             GameInfo(
-                appid=str(it["id"]),
+                appid=appid,
                 name=name,
                 price=it.get("price", "") or "",
                 source="store",
-                header_image=it.get("tiny_image", "") or "",
+                # storesearch only hands back a tiny (~80px) thumbnail; the full header is at this fixed CDN
+                # path for every app, no extra request needed to get something that isn't blurry
+                header_image=HEADER_CDN.format(appid=appid),
             )
         )
     return out
@@ -50,7 +56,9 @@ def from_store(appid: str) -> GameInfo:
         data = get_json(f"https://store.steampowered.com/api/appdetails?appids={appid}&cc=us&l=en")
     except (OSError, ValueError, SourceError) as e:
         raise SourceError(f"store lookup failed: {e}")
-    app = data.get(appid or str(appid), {})
+    # steam's own key isn't always the appid we asked for (it can point at a linked app, e.g. a beta branch);
+    # a single-appid request is always exactly one entry, so take that instead of assuming the key
+    app = next(iter(data.values()), {})
     if not app.get("success"):
         raise SourceError(f"store: app {appid} not found")
     info = app.get("data", {})
@@ -67,6 +75,6 @@ def from_store(appid: str) -> GameInfo:
         short_description=info.get("short_description", ""),
         about=info.get("detailed_description", ""),
         developers=info.get("developers", []) or info.get("publishers", []),
-        header_image=info.get("header_image", "") or "",
+        header_image=info.get("header_image", "") or HEADER_CDN.format(appid=appid),
         screenshots=screens,
     )

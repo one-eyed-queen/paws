@@ -21,7 +21,7 @@ def _cache_path(url):
     return CACHE / key
 
 
-def cached_build(url: str, width: int = 34) -> str | None:
+def cached_path(url: str) -> Path | None:
     if not url:
         return None
     p = _cache_path(url)
@@ -34,7 +34,12 @@ def cached_build(url: str, width: int = 34) -> str | None:
             p.write_bytes(data)
         except OSError:
             pass
-    return render(p, width)
+    return p
+
+
+def cached_build(url: str, width: int = 34) -> str | None:
+    p = cached_path(url)
+    return render(p, width) if p else None
 
 
 def render(path: Path, width: int = 34) -> str | None:

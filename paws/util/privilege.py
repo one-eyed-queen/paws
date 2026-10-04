@@ -24,6 +24,9 @@ def run_privileged(
     approver: Approver | None = None,
     password: str | None = None,
 ) -> int:
+    if not hasattr(os, "geteuid"):
+        print("[privilege] windows: run this from an administrator terminal instead", file=sys.stderr)
+        return 126
     if os.geteuid() == 0:
         return subprocess.run(command, text=True).returncode
     approver = approver or _default_approver

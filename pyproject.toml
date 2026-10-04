@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "paws"
-description = "menu driven SLSsteam manager for Linux"
+description = "menu driven SLSsteam manager for Linux and Windows"
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "Source-Available, see LICENSE; not OSI open source" }

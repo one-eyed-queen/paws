@@ -1,5 +1,5 @@
 {
-  "$comment": "every key of SLSsteam's config.yaml (32), checked against AceSLS/SLSsteam src/config.cpp and res/config.yaml. `removed` is keys SLSsteam doesn't read anymore or never had: paws warns if your config still has them and never writes them.",
+  "$comment": "every key of SLSsteam's config.yaml (37, checked 2026-09-28 against a private AceSLS/SLSsteam build's own bundled res/config.yaml + its runtime 'Config loading issues' log - it reads AdditionalDepots/AdditionalPackages/DecryptionKeys/CloudProxies/InventoryItems even though an earlier audit against the public main branch's history said the first three never existed; trust the running build's own bundled template over a stale history read if they ever disagree again). `removed` is keys SLSsteam doesn't read anymore or never had: paws warns if your config still has them and never writes them.",
   "scalar_defaults": {
     "DisableFamilyShareLock": "yes",
     "UseWhitelist": "no",
@@ -39,6 +39,24 @@
       "item": "  - {id} # {name}",
       "desc": "apps to inject. overrides OwnerIds for shared apps and BREAKS downloads, so only use it for games not in your library",
       "tool": "manage"
+    },
+    "AdditionalDepots": {
+      "type": "list-int",
+      "item": "  - {id} # {name}",
+      "desc": "extra depot ids to inject, used for downloading together with AdditionalApps",
+      "tool": "manage"
+    },
+    "AdditionalPackages": {
+      "type": "list-int",
+      "item": "  - {id} # {name}",
+      "desc": "extra licenses to inject. only works with store packages",
+      "tool": "manage"
+    },
+    "DecryptionKeys": {
+      "type": "map-str",
+      "item": "  {id}: \"{key}\" # {name}",
+      "desc": "depot decryption keys to inject",
+      "tool": "expert"
     },
     "DlcData": {
       "type": "map-map",
@@ -82,6 +100,18 @@
       "item": "  - {depot} # {name}",
       "desc": "depots to never download (fixes the Saints Row IV Proton downloads for example)",
       "tool": "game"
+    },
+    "CloudProxies": {
+      "type": "map-int",
+      "item": "  {id}: {proxy} # {name}",
+      "desc": "redirects cloud saves for unowned apps to the given appid. key 0 = every app you don't own",
+      "tool": "expert"
+    },
+    "InventoryItems": {
+      "type": "list-int",
+      "item": "  - {id} # {name}",
+      "desc": "inventory item list",
+      "tool": "expert"
     },
     "IdleStatus": {
       "type": "idle",
@@ -201,9 +231,6 @@
     "PlayNotOwnedGames",
     "AutoFilterList",
     "Notifications",
-    "LogLevel",
-    "AdditionalDepots",
-    "AdditionalPackages",
-    "DecryptionKeys"
+    "LogLevel"
   ]
 }

@@ -5,7 +5,7 @@ from pathlib import Path
 
 from ..paths import default_config_dir
 from ..util.backup import backup_file
-from .io import raw_lines, write
+from .io import raw_lines, write, write_lf
 from .schema import SECTIONS, ordered_keys
 from .where import find_config
 
@@ -58,5 +58,5 @@ def ensure_config() -> Path:
     if c is None:
         c = default_config_dir() / "config.yaml"
         c.parent.mkdir(parents=True, exist_ok=True)
-        c.write_text(default_config_text())
+        write_lf(c, default_config_text())
     return c

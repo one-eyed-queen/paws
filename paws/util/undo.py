@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
-from pathlib import Path
 
-JOURNAL = Path.home() / ".config/paws/undo.jsonl"
+from ..paths import paws_home
+
+JOURNAL = paws_home() / "undo.jsonl"
 
 
 def log(kind: str, detail: dict):

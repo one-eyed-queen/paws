@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from ..paths import DATA_DIR
+from ..paths import DATA_DIR, paws_home
 
 HOME = Path.home()
 
@@ -15,7 +15,7 @@ PALETTES_FILE = DATA_DIR / "ascii" / "palettes.json"
 
 
 def user_cfg_dir() -> Path:
-    return Path(os.environ.get("PAWS_CONFIG_DIR", HOME / ".config/paws"))
+    return Path(os.environ.get("PAWS_CONFIG_DIR") or paws_home())
 
 
 def user_art_dir() -> Path:

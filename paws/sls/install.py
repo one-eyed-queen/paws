@@ -35,6 +35,12 @@ def install_release(
     merge_config: bool = True,
     progress=None,
 ) -> SlsInstall:
+    from ..windows import IS_WINDOWS
+
+    if IS_WINDOWS:
+        from ..windows import port
+
+        port.unsupported()
     destination = destination or HOME / ".local/share/SLSsteam"
     download_dir = HOME / ".cache/paws"
     if source.kind == "private":

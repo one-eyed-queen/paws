@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import time
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -49,9 +50,29 @@ def write_now(path, text):
     """temp file then rename so a crash can't leave half a config"""
     target = path.resolve()
     temporary_path = target.with_name(target.name + ".paws-tmp")
-    temporary_path.write_text(text)
+    write_lf(temporary_path, text)
     try:
         os.chmod(temporary_path, target.stat().st_mode & 0o7777)
     except OSError:
         pass
-    os.replace(temporary_path, target)
+    _replace(temporary_path, target)
+
+
+def write_lf(path, text):
+    """windows would turn every \n into \r\n and write cp1252, SLSsteam's config wants plain utf-8 lines"""
+    if os.name == "nt":
+        path.write_text(text, encoding="utf-8", newline="\n")
+    else:
+        path.write_text(text)
+
+
+def _replace(src, target, tries=10):
+    """on windows the rename fails while anything else has the file open (steam, an antivirus scan): wait it out"""
+    for attempt in range(tries):
+        try:
+            os.replace(src, target)
+            return
+        except PermissionError:
+            if os.name != "nt" or attempt == tries - 1:
+                raise
+            time.sleep(0.2)

@@ -49,6 +49,8 @@ def _term_size():
 
 
 def _can_sudo():
+    if not hasattr(os, "geteuid"):  # windows: no sudo, paws never needs admin there
+        return False
     if os.geteuid() == 0:
         return True
     try:
@@ -65,7 +67,7 @@ def detect() -> Env:
     e.is_tty = sys.stdin.isatty()
     e.term = os.environ.get("TERM", "")
     e.width, e.height = _term_size()
-    e.shell = os.environ.get("SHELL", "").rsplit("/", 1)[-1]
+    e.shell = os.environ.get("SHELL", "").rsplit("/", 1)[-1] or ("powershell" if os.environ.get("PSModulePath") else "")
     e.xdg_session = os.environ.get("XDG_SESSION_TYPE", "")
     e.color_support = e.is_tty and os.environ.get("NO_COLOR") is None and e.term not in ("dumb", "unknown", "")
     for tool in (

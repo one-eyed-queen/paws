@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 
 from ..sls.model import SlsInstall
+from ..windows import IS_WINDOWS
 from .model import SteamInstall
 from .process import is_running, kill_steam
 
@@ -33,6 +34,10 @@ def launch_env(sls: SlsInstall | None) -> dict[str, str]:
 def steam_command(steam: SteamInstall | None) -> list[str]:
     if steam is None:
         exe = shutil.which("steam")
+        if not exe and IS_WINDOWS:
+            from ..windows import registry
+
+            exe = registry.steam_exe()
         if not exe:
             raise SteamError("couldn't find steam on your PATH or in the usual folders")
         if exe.startswith("/snap/"):
@@ -51,15 +56,11 @@ def launch(steam: SteamInstall | None, sls: SlsInstall | None, *args: str, wait:
     command = steam_command(steam)
     command += list(args)
     env = launch_env(sls)
+    # on windows a steam started from the console would die with it, so it gets its own detached process group
+    detach = {"creationflags": 0x00000008 | 0x00000200} if IS_WINDOWS else {"start_new_session": True}
     try:
         with open(os.devnull, "w") as dn:
-            subprocess.Popen(
-                command,
-                env=env,
-                stdout=dn,
-                stderr=dn,
-                start_new_session=True,
-            )
+            subprocess.Popen(command, env=env, stdout=dn, stderr=dn, **detach)
     except FileNotFoundError:
         raise SteamError(f"steam binary not found: {command[0]}")
     if wait:
@@ -79,13 +80,17 @@ def sls_injected() -> bool:
     process start, so a live steam we did not launch under injection can't get it now"""
     from .process import helper_pids, steam_pids
 
+    if IS_WINDOWS:
+        from ..windows import port
+
+        return port.injected()
     for pid in steam_pids() + helper_pids():
         for leaf in ("environ", "maps"):
             try:
                 blob = Path(f"/proc/{pid}/{leaf}").read_bytes().lower()
             except OSError:
                 continue
-            if any(m in blob for m in ("slssteam", "libsls", "library-inject")):
+            if any(m in blob for m in (b"slssteam", b"libsls", b"library-inject")):
                 return True
     return False
 

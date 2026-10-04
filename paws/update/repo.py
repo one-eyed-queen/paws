@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 
-DEFAULT_URL = "https://github.com/one-eyed-queen/paw"
+DEFAULT_URL = "https://github.com/one-eyed-queen/paws"
 BRANCH = "main"
 
 

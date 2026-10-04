@@ -1,7 +1,7 @@
 #!/bin/sh
 # paws installer, any linux. no root, nothing outside ur home.
 #
-#   git clone https://github.com/one-eyed-queen/paw && cd paw && ./scripts/install.sh
+#   git clone https://github.com/one-eyed-queen/paws && cd paws && ./scripts/install.sh
 #
 # makes a private python env in ~/.local/share/paws/venv, installs paws in it and links
 # `paws` into ~/.local/bin. same on arch, debian, ubuntu, mint, pop, kali, parrot, fedora, opensuse,

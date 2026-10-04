@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import re
 import shlex
 import shutil
@@ -24,6 +25,8 @@ def is_ticket_file(p: Path) -> bool:
 def _token_to_path(tok):
     if tok.startswith("file://"):  # file managers hand over percent encoded uris
         tok = unquote(urlparse(tok).path)
+        if os.name == "nt" and re.match(r"/[A-Za-z]:", tok):  # file:///C:/x -> /C:/x -> C:/x
+            tok = tok[1:]
     return Path(tok).expanduser()
 
 
@@ -118,6 +121,14 @@ def is_bare_id(text: str) -> bool:
     return bool(re.fullmatch(r"\s*\d+\s*", text))
 
 
+def _split(line):
+    """windows terminal pastes C:\\x\\y.zip, and quotes it only when there's a space: posix shlex would eat every
+    backslash as an escape, so on windows split without escapes and take the quotes off by hand"""
+    if os.name != "nt":
+        return shlex.split(line)
+    return [t[1:-1] if len(t) > 1 and t[0] == t[-1] and t[0] in "\"'" else t for t in shlex.split(line, posix=False)]
+
+
 def paths_in(text: str) -> list[Path]:
     out = []
     for line in text.replace("\r", "\n").split("\n"):
@@ -125,7 +136,7 @@ def paths_in(text: str) -> list[Path]:
         if not line:
             continue
         try:
-            toks = shlex.split(line)
+            toks = _split(line)
         except ValueError:
             toks = [line]
         out.extend(_token_to_path(t) for t in toks)

@@ -12,6 +12,7 @@ def add_parser(subparsers, common):
     p.add_argument("appid")
     p.add_argument("--timeout", type=float, default=25.0)
     p.add_argument("--no-copy", action="store_true")
+    p.add_argument("--dry-run", action="store_true", help="show what would be done, change nothing")
     p.add_argument(
         "--kind",
         choices=activation.WANTS,
@@ -23,6 +24,23 @@ def add_parser(subparsers, common):
 
 
 def run(args) -> int:
+    if args.dry_run:
+        from ...config.scalars import get_scalar
+        from ...sls.find import find_sls
+        from ...steam.find import find_steam
+
+        sls = find_sls()
+        st = find_steam()
+        if not sls:
+            print("SLSsteam is not installed")
+            return 1
+        if not st:
+            print("Steam is not installed")
+            return 1
+        names = activation.ticket_names(args.appid, args.kind)
+        print(f"would make tickets for {args.appid}: {', '.join(names)}")
+        print(f"method: {'api' if get_scalar('API') == 'yes' else 'oneshot'}")
+        return 0
     r = activation.activate(args.appid, timeout=args.timeout, copy_to_clipboard=not args.no_copy, want=args.kind)
     missing = activation.missing_tickets(args.appid, r["tickets"], args.kind)
     if args.json:

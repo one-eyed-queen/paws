@@ -10,6 +10,7 @@ from textual.widgets import Button, Input, RadioButton, RadioSet, Static
 from ... import settings as settingsmod
 from ... import shellalias as sa
 from ...util import clipboard
+from ...windows import IS_WINDOWS
 from ..widgets.footer import FooterHelp
 from ..widgets.header import AppHeader
 
@@ -32,7 +33,7 @@ class AliasScreen(Screen):
             with Horizontal(id="alias-buttons"):
                 yield Button("Put it in my shell config", id="alias-install", variant="primary")
                 yield Button("Copy the snippet", id="alias-copy")
-                yield Button("Fix PATH (~/.local/bin)", id="alias-path")
+                yield Button("Fix PATH" if IS_WINDOWS else "Fix PATH (~/.local/bin)", id="alias-path")
         yield Static("", id="alias-out", classes="panel")
         yield FooterHelp("type the name · pick your shell · enter or tab to the buttons · esc back")
 

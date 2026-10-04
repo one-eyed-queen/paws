@@ -7,7 +7,8 @@ from dataclasses import dataclass
 SYSTEM = ("rpm-ostree", "pacman", "apt", "dnf", "zypper", "xbps", "apk", "emerge")
 AUR_HELPERS = ("paru", "yay")
 SANDBOXED = ("flatpak", "snap")
-ALL = (*SYSTEM, *AUR_HELPERS, *SANDBOXED)
+WINDOWS = ("winget",)  # ships with windows 10/11
+ALL = (*SYSTEM, *AUR_HELPERS, *SANDBOXED, *WINDOWS)
 
 PROGRAM = {"xbps": "xbps-install"}
 
@@ -26,6 +27,7 @@ INSTALL: dict[str, dict[str, str]] = {
         "emerge": "sudo emerge --ask games-util/steam-launcher",
         "flatpak": "flatpak install flathub com.valvesoftware.Steam",
         "snap": "sudo snap install steam",
+        "winget": "winget install Valve.Steam",
     },
     "git": {
         "pacman": "sudo pacman -S git",
@@ -36,6 +38,7 @@ INSTALL: dict[str, dict[str, str]] = {
         "apk": "sudo apk add git",
         "emerge": "sudo emerge --ask dev-vcs/git",
         "rpm-ostree": "sudo rpm-ostree install git",
+        "winget": "winget install Git.Git",
     },
     "wl-clipboard": {
         "pacman": "sudo pacman -S wl-clipboard",
