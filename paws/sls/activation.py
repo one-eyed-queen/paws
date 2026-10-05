@@ -11,9 +11,11 @@ from ..config.where import find_config
 from ..steam.find import find_steam
 from ..steam.library import installed_games, library_paths
 from .find import find_sls
+from .grabber import grab
 from .tickets import Ticket, cache_dir, load_ticket_file, to_clipboard_text
 
 DEFAULT_TIMEOUT = 25.0
+STEAM_START = 90.0  # extra time when activation has to start steam itself and wait for it to log in
 
 
 def ensure_subscribed(appid: str) -> str | None:
@@ -29,15 +31,16 @@ def ensure_subscribed(appid: str) -> str | None:
     return entry if add_entry("AdditionalApps", entry)[0] else None
 
 
-def _unsubscribe(entry: str | None, result: dict):
+def _unsubscribe(entry: str | None, result: dict, appid: str | None = None):
     """AdditionalApps overwrites the owner id: left in, it breaks downloads and can loop steam on loading user
-    data. it only comes out with steam closed, a row removed while steam runs can get the game uninstalled"""
+    data. a row removed while steam runs can get the game uninstalled, so for an installed game it waits for steam
+    to close. a game that isn't installed has nothing to lose, so its row comes out straight away"""
     if entry is None:
         return
     from ..config.entries import remove_rendered
     from ..config.io import batch
 
-    if steam.is_running():
+    if steam.is_running() and not (appid and not_installed(appid)):
         result["note"] = "close steam, then run `paws fix` to take the activation row out of AdditionalApps"
         return
     with batch():
@@ -95,6 +98,17 @@ def _poll(cache, appid, timeout, found=None, want="both"):
     return sorted(found, key=lambda t: not t.encrypted)
 
 
+def _config_name(appid: str) -> str:
+    """the name from the game's own rows (AppIds etc), skipping the bare-id ones and the activation row"""
+    from ..config.entries import refs_for
+
+    for _, line in refs_for(appid):
+        name = line.partition("#")[2].strip()
+        if name and name != str(appid) and not name.startswith("activated "):
+            return name
+    return str(appid)
+
+
 def mark_denuvo(appid: str, tickets: list[Ticket]) -> bool:
     """an encrypted ticket is what denuvo checks, so the game goes in DenuvoGames under the account that made it.
     SLSsteam then only unlocks it on that account and never on another one sharing this config"""
@@ -104,7 +118,7 @@ def mark_denuvo(appid: str, tickets: list[Ticket]) -> bool:
     enc = next((t for t in tickets if t.encrypted), None)
     if enc is None or not enc.steam_id.isdigit():
         return False
-    name = installed_games().get(str(appid), str(appid))
+    name = installed_games().get(str(appid)) or _config_name(appid)
     with batch():
         return add_map_list_item("DenuvoGames", {"steamid": enc.steam_id, "appid": appid, "name": name})[0]
 
@@ -112,6 +126,23 @@ def mark_denuvo(appid: str, tickets: list[Ticket]) -> bool:
 def not_installed(appid: str) -> bool:
     """steam answers a launch of an uninstalled game with its install window, never the game itself"""
     return bool(library_paths()) and str(appid) not in installed_games()
+
+
+def _grab_without_the_game(appid, st, sls, timeout) -> str | None:
+    """the helper only works against a logged-in steam with SLSsteam in it, SLSsteam is what saves the tickets"""
+    if not (steam.is_running() and steam.sls_injected()):
+        if steam.is_running():
+            steam.kill_steam()
+            time.sleep(1.0)
+        steam.launch(st, sls)
+        timeout += STEAM_START
+    deadline = time.time() + timeout
+    while True:
+        error = grab(appid, max(5.0, deadline - time.time()))
+        # steam refuses the connection until it has started and logged in, so only that one is worth a retry
+        if error is None or time.time() >= deadline or not error.startswith("steam wouldn't let"):
+            return error
+        time.sleep(3.0)
 
 
 def missing_tickets(appid: str, tickets: list[Ticket], want: str) -> list[str]:
@@ -132,29 +163,18 @@ def activate(
     sls_install=None,
     want: str = "both",
 ) -> dict:
-    if want != "normal" and not_installed(appid):
-        return {
-            "method": None,
-            "tickets": [],
-            "copied": False,
-            "want": want,
-            "missing": ticket_names(appid, "encrypted"),
-            "error": f"{appid} isn't installed. the encrypted ticket only gets made while the game is running, "
-            "and launching an uninstalled game just opens steam's install window. install it first, "
-            "or ask for the normal ticket only",
-        }
     added = []
     try:
         result = _activate(appid, added, timeout, copy_to_clipboard, auto_manage, steam_bin, sls_install, want)
     except BaseException:
         if added:
-            _unsubscribe(added[0], {})
+            _unsubscribe(added[0], {}, appid)
         raise
-    if added and added[0] and result.get("missing") and not result.get("error"):
+    if added and added[0] and result.get("missing") and not result.get("error") and not not_installed(appid):
         # the game still has to run once for the encrypted ticket, and that needs the row. `paws fix` tidies it later
         result["note"] = "the AdditionalApps row stays until that ticket lands, then run `paws fix` with steam closed"
     else:
-        _unsubscribe(added[0] if added else None, result)
+        _unsubscribe(added[0] if added else None, result, appid)
     if not result.get("error") and mark_denuvo(appid, result["tickets"]):
         result["denuvo"] = True
     return result
@@ -179,6 +199,21 @@ def _activate(appid, added, timeout, copy_to_clipboard, auto_manage, steam_bin, 
         return result
 
     added.append(ensure_subscribed(appid))
+
+    if not_installed(appid):
+        if not auto_manage and not (steam.is_running() and steam.sls_injected()):
+            result["error"] = "steam isn't running with SLSsteam, and paws was told not to start it"
+            return result
+        result["method"] = "helper"
+        error = _grab_without_the_game(appid, st, sls, timeout)
+        found = _poll(cache, appid, timeout=GRACE + 2, want=want)
+        if error and not found:
+            result["error"] = error
+        result["tickets"] = found
+        result["missing"] = missing_tickets(appid, found, want)
+        if found and copy_to_clipboard:
+            result["copied"] = any(cb_copy(to_clipboard_text(t)) for t in found)
+        return result
 
     # no `install|appid|0` through the API: that queued a real download and is why steam jumped to install
     api_on = get_scalar("API") == "yes"

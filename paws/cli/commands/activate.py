@@ -39,7 +39,10 @@ def run(args) -> int:
             return 1
         names = activation.ticket_names(args.appid, args.kind)
         print(f"would make tickets for {args.appid}: {', '.join(names)}")
-        print(f"method: {'api' if get_scalar('API') == 'yes' else 'oneshot'}")
+        method = (
+            "helper" if activation.not_installed(args.appid) else "api" if get_scalar("API") == "yes" else "oneshot"
+        )
+        print(f"method: {method}")
         return 0
     r = activation.activate(args.appid, timeout=args.timeout, copy_to_clipboard=not args.no_copy, want=args.kind)
     missing = activation.missing_tickets(args.appid, r["tickets"], args.kind)
