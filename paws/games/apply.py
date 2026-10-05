@@ -5,10 +5,20 @@ from .. import config
 from ..steam import depotcache as dcache
 from ..steam import vdf
 from ..util import undo
+from .free import free_message, strip_free
 from .plan import GamePlan
 
 
 def apply_plan(plan: GamePlan, *, checked: set[str] | None = None) -> dict:
+    item_is_free, _extras = strip_free(plan)  # every way in (screen, drop, bulk, cli) ends up here
+    if item_is_free:
+        return {
+            "applied": 0,
+            "errors": [free_message(plan.name, plan.appid)],
+            "added": 0,
+            "nudged": False,
+            "free": True,
+        }
     applied = 0
     errors = []
     added = []

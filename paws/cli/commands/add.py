@@ -52,9 +52,13 @@ def _bulk(args, parsed):
     else:
         if result["added"]:
             head = f"added {result['added']} new entr{'y' if result['added'] == 1 else 'ies'} for {result['games']} game(s)"
+        elif result["errors"]:
+            head = "nothing new"
         else:
             head = f"nothing new: all {result['games']} game(s) were already there"
         print(head + (f", {len(result['errors'])} error(s)" if result["errors"] else ""))
+        for error in result["errors"][:10]:
+            print(f"  {error}")
     return 1 if result["errors"] else 0
 
 
@@ -79,4 +83,6 @@ def run(args) -> int:
         print(json.dumps({"plan": [c.__dict__ for c in plan.changes()], "result": result}))
     else:
         print(f"applied {result['applied']} change(s), {len(result['errors'])} error(s)")
-    return 0
+        for error in result["errors"]:
+            print(f"  {error}")
+    return 1 if result.get("free") else 0

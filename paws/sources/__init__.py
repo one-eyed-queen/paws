@@ -8,7 +8,7 @@ from .steamcmd import (
     from_steamcmd,
     parse_sls_output,
 )
-from .store import BLACKLIST, from_store, search_store
+from .store import BLACKLIST, free_ids, from_store, search_store
 
 __all__ = [
     "SourceError",
@@ -21,5 +21,6 @@ __all__ = [
     "from_steamcmd",
     "BLACKLIST",
     "search_store",
+    "free_ids",
     "from_store",
 ]

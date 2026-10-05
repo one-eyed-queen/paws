@@ -16,16 +16,32 @@ from .tickets import Ticket, cache_dir, load_ticket_file, to_clipboard_text
 DEFAULT_TIMEOUT = 25.0
 
 
-def ensure_subscribed(appid: str):
+def ensure_subscribed(appid: str) -> str | None:
+    """steam only makes a ticket for an app it thinks you own, so the app goes in AdditionalApps for the run.
+    returns the row when this call added it, so activate() can take it back out"""
     from ..config.scalars import get_list
 
-    config_path = find_config()
-    if config_path is None:
+    if find_config() is None:
         ensure_config()
-    for section, dedup in (("AdditionalApps", True),):
-        entry = render_item(section, {"id": appid, "name": f"activated {appid}"})
-        if appid not in get_list(section):
-            add_entry(section, entry)
+    entry = render_item("AdditionalApps", {"id": appid, "name": f"activated {appid}"})
+    if appid in get_list("AdditionalApps"):
+        return None
+    return entry if add_entry("AdditionalApps", entry)[0] else None
+
+
+def _unsubscribe(entry: str | None, result: dict):
+    """AdditionalApps overwrites the owner id: left in, it breaks downloads and can loop steam on loading user
+    data. it only comes out with steam closed, a row removed while steam runs can get the game uninstalled"""
+    if entry is None:
+        return
+    from ..config.entries import remove_rendered
+    from ..config.io import batch
+
+    if steam.is_running():
+        result["note"] = "close steam, then run `paws fix` to take the activation row out of AdditionalApps"
+        return
+    with batch():
+        remove_rendered("AdditionalApps", entry)
 
 
 WANTS = ("encrypted", "normal", "both")
@@ -97,6 +113,22 @@ def activate(
     sls_install=None,
     want: str = "both",
 ) -> dict:
+    added = []
+    try:
+        result = _activate(appid, added, timeout, copy_to_clipboard, auto_manage, steam_bin, sls_install, want)
+    except BaseException:
+        if added:
+            _unsubscribe(added[0], {})
+        raise
+    if added and added[0] and result.get("missing") and not result.get("error"):
+        # the game still has to run once for the encrypted ticket, and that needs the row. `paws fix` tidies it later
+        result["note"] = "the AdditionalApps row stays until that ticket lands, then run `paws fix` with steam closed"
+    else:
+        _unsubscribe(added[0] if added else None, result)
+    return result
+
+
+def _activate(appid, added, timeout, copy_to_clipboard, auto_manage, steam_bin, sls_install, want) -> dict:
     if want not in WANTS:
         want = "both"
     from ..util.clipboard import copy as cb_copy
@@ -114,7 +146,7 @@ def activate(
         result["error"] = UNDER_CONSTRUCTION
         return result
 
-    ensure_subscribed(appid)
+    added.append(ensure_subscribed(appid))
 
     api_on = get_scalar("API") == "yes"
     if api_on and steam.is_running():

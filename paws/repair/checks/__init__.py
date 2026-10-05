@@ -5,6 +5,7 @@ from ...util import backup
 from ..model import Problem
 from ._shared import move_aside
 from .api_pipe import check_api_pipe
+from .apps import check_additional_apps, check_additional_packages
 from .config import (
     check_config_broken,
     check_config_dupes,
@@ -30,6 +31,8 @@ __all__ = [
     "check_config_permissions",
     "check_config_values",
     "check_api_pipe",
+    "check_additional_apps",
+    "check_additional_packages",
     "USER_APPS",
     "STEAM_LAUNCHERS",
     "audit_paths",
@@ -69,6 +72,9 @@ def scan(online: bool = False) -> list[Problem]:
         out += structural + values
         out += check_config_keys(config_path)
         out += check_config_permissions(config_path)
+        out += check_additional_apps(config_path)
+        if online:  # asks the store about every package, so only for `paws fix`
+            out += check_additional_packages(config_path)
         if not structural and not any(p.severity == "error" for p in values):
             backup.snapshot_good(config_path)
     out += check_api_pipe()

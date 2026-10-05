@@ -47,6 +47,9 @@ def plans_from(parsed: Parsed, names: dict[str, str] | None = None) -> list[Game
 
 
 def apply_bulk(plans: list[GamePlan]) -> dict:
+    from ..sources.store import free_ids
+
+    free_ids([a for p in plans for a in (p.appid, *p.additional_apps)])  # one store round trip, apply_plan reuses it
     already = sum(1 for p in plans if config.refs_for(p.appid))
     applied, added, errors = 0, 0, []
     with config.batch():

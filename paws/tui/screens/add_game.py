@@ -14,7 +14,7 @@ from ... import manifest
 from ... import sources
 from ..widgets import hires
 from ..widgets.header import AppHeader
-from ..widgets.modals import ModalInput
+from ..widgets.modals import ModalInfo, ModalInput
 
 DETAIL_COLS = 34
 DETAIL_TEXT_WIDTH = 36  # #add-detail is 40 cols wide minus its padding/border
@@ -146,13 +146,24 @@ class AddGameScreen(Screen):
         try:
             if q.isdigit():
                 gi = sources.from_store(q)
+                if gi.free:
+                    self._free_popup(gi.name, gi.appid)
+                    return
                 self._show_results([gi])
             else:
                 hits = sources.search_store(q)
+                free = sources.free_ids([h.appid for h in hits])
+                hits = [h for h in hits if h.appid not in free]
                 if not hits:
-                    self.set_hint("[#9db0e0]no store hits; maybe try an AppId[/]")
+                    self.set_hint(
+                        f"[#9db0e0]only free stuff matched ({len(free)} hidden), free items don't need adding[/]"
+                        if free
+                        else "[#9db0e0]no store hits; maybe try an AppId[/]"
+                    )
                     return
                 self._show_results(hits)
+                if free:
+                    self.set_hint(f"{len(hits)} result(s), {len(free)} free one(s) hidden. Enter to inspect + add.")
         except RuntimeError as e:
             self.set_hint(f"[red]{e}[/red]")
         except Exception as e:
@@ -170,7 +181,8 @@ class AddGameScreen(Screen):
             info = sources.GameInfo(appid=str(appid), name="from pasted output", source="pasted")
             info.linked = additional
             info.dlc_names = next(iter(dlc_data.values())) if dlc_data else {}
-            self._render_plan(games.plan_from_info(info))
+            if not self._offer(games.plan_from_info(info)):
+                return
             self.set_detail(f"[b]{appid}[/b]  pasted output: {len(additional)} additional + {len(info.dlc_names)} dlc")
         except Exception as e:
             self.set_hint(f"[red]{e}[/red]")
@@ -209,7 +221,7 @@ class AddGameScreen(Screen):
             )
             return
         self.query_one("#in-query", Input).value = appid
-        self._render_plan(games.plan_from_bundle(b))
+        self._offer(games.plan_from_bundle(b))
 
     @on(DataTable.RowSelected)
     def _on_row(self, ev):
@@ -287,10 +299,30 @@ class AddGameScreen(Screen):
         try:
             if not getattr(info, "depot_keys", None) and info.appid.isdigit():
                 info = sources.from_store(info.appid)
-            self._render_plan(games.plan_from_info(info))
-            self.set_hint("plan ready - review the checklist, then Apply (checked).")
+            if self._offer(games.plan_from_info(info)):
+                self.set_hint(self._hint_after_offer or "plan ready - review the checklist, then Apply (checked).")
         except Exception as e:
             self.set_hint(f"[red]{e}[/red]")
+
+    _hint_after_offer = ""
+
+    def _free_popup(self, name, appid):
+        self.app.push_screen(ModalInfo(games.free_message(name, str(appid)), "free on steam"))
+        self.set_hint(f"[#ffb454]{name or appid} is free, nothing added[/]")
+
+    def _offer(self, plan) -> bool:
+        """free things never reach the checklist: the item itself gets a popup, free dlc / linked apps just drop out"""
+        item_is_free, extras = games.strip_free(plan)
+        if item_is_free:
+            self._free_popup(plan.name, plan.appid)
+            return False
+        self._render_plan(plan)
+        self._hint_after_offer = (
+            f"plan ready, {len(extras)} free extra(s) left out. review, then Apply." if extras else ""
+        )
+        if extras:
+            self.set_hint(self._hint_after_offer)
+        return True
 
     def _render_plan(self, plan):
         self._plan = plan
@@ -320,6 +352,9 @@ class AddGameScreen(Screen):
         changes = self._plan.changes()
         checked = {changes[i].key for i in self._checked}
         result = games.apply_plan(self._plan, checked=checked)
+        if result.get("free"):
+            self._free_popup(self._plan.name, self._plan.appid)
+            return
         self.set_hint(f"[green]applied {result['applied']}[/green] [red]errors={len(result['errors'])}[/red]")
         name = self._plan.name or self._plan.appid
         if result["errors"]:

@@ -67,6 +67,8 @@ def run(args) -> int:
                     "if this game uses one, launch it once through SLSsteam (paws has it in the config already) "
                     "and the file will show up here"
                 )
+        if r.get("note"):
+            print(f"note: {r['note']}")
     primary = "encrypted" if args.kind != "normal" else "normal"
     have = {"encrypted" if t.encrypted else "normal" for t in r["tickets"]}
     if not have:
