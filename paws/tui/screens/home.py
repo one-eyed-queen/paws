@@ -153,6 +153,10 @@ class HomeScreen(Screen):
 
     def _render_status(self):
         parts = list(getattr(self, "_status_text", []))
+        # the release line is drawn from the live value, never baked into a status build: a slow build that
+        # started while it was still "checking…" used to land last and leave it stuck on that
+        if getattr(self, "_show_latest", True):
+            parts.insert(min(2, len(parts)), f"[#9db0e0]latest release: {getattr(self, '_latest', 'checking…')}[/]")
         if getattr(self, "_last_art", None):
             parts.append(f"[#9db0e0]banner: {self._last_art}[/]")
         parts.append(
@@ -218,7 +222,7 @@ class HomeScreen(Screen):
 
     def refresh_status(self):
         self._latest = "checking…"
-        self._status_text = [f"[#9db0e0]latest release: {self._latest}[/]"]
+        self._status_text = []
         self._render_status()
         self._build_status()
         self._load_latest()
@@ -230,7 +234,7 @@ class HomeScreen(Screen):
 
     def _got_latest(self, latest):
         self._latest = latest
-        self._build_status()
+        self._render_status()
         self._announce_update(latest)
 
     @staticmethod
@@ -275,23 +279,29 @@ class HomeScreen(Screen):
         except Exception:
             pass
 
-    @work(thread=True, exclusive=True, group="home-status")
+    _status_gen = 0
+
     def _build_status(self):
-        latest = self._latest
+        self._status_gen += 1
+        self._build_status_worker(self._status_gen)
+
+    @work(thread=True, exclusive=True, group="home-status")
+    def _build_status_worker(self, gen):
         st, sls = find_steam(), find_sls()
         version = sls_module.installed_version(sls) if sls else None
         steam_text = f"Steam: {st.kind} v{st.client_version}" if st else "Steam: not found"
         sls_text = f"SLS: ver={version}" if sls else "SLS: not installed"
         text = [f"[b]{steam_text}[/b]", f"[b]{sls_text}[/b]"]
-        if not (sls and sls.kind == "windows"):  # the release feed is the linux build
-            text.append(f"[#9db0e0]latest release: {latest}[/]")
+        self._show_latest = not (sls and sls.kind == "windows")  # the release feed is the linux build
         if sls and not sls.desktop_used and sls.kind != "windows":  # windows has no LD_AUDIT, the dll loads itself
             text.append("[red]LD_AUDIT not wired into the .desktop file[/red]")
         text += self._repair_hint()
         text += self._schema_hint(sls)
-        self.app.call_from_thread(self._set_status, text)
+        self.app.call_from_thread(self._set_status, text, gen)
 
-    def _set_status(self, text):
+    def _set_status(self, text, gen=None):
+        if gen is not None and gen != self._status_gen:
+            return  # an older build finishing late, a newer one is on its way
         self._status_text = text
         self._render_status()
 
