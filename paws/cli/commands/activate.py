@@ -55,7 +55,17 @@ def run(args) -> int:
             }
             for t in r["tickets"]
         ]
-        print(json.dumps({"method": r["method"], "tickets": tickets, "missing": missing, "error": r["error"]}))
+        print(
+            json.dumps(
+                {
+                    "method": r["method"],
+                    "tickets": tickets,
+                    "missing": missing,
+                    "error": r["error"],
+                    "denuvo": bool(r.get("denuvo")),
+                }
+            )
+        )
     else:
         got = ", ".join(f"'{t.filename}'" for t in r["tickets"]) or "-"
         print(f"method={r['method']} tickets=[{got}] copied={r['copied']} error={r['error']}")
@@ -67,6 +77,8 @@ def run(args) -> int:
                     "if this game uses one, launch it once through SLSsteam (paws has it in the config already) "
                     "and the file will show up here"
                 )
+        if r.get("denuvo"):
+            print("note: added to DenuvoGames, so it only unlocks on the account that made the ticket")
         if r.get("note"):
             print(f"note: {r['note']}")
     primary = "encrypted" if args.kind != "normal" else "normal"

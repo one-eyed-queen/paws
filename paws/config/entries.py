@@ -47,6 +47,36 @@ def add_entry(section: str, rendered: str, backup: bool = True) -> tuple[bool, s
     return True, bak
 
 
+def add_map_list_item(section: str, fields: dict, backup: bool = True) -> tuple[bool, str | None]:
+    """one item under its key in a map-list section (DenuvoGames: steamid -> appids), making the key if needed"""
+    schema = section_schema(section)
+    key_line, item = schema["key"].format(**fields), schema["item"].format(**fields)
+    path = ensure_config()
+    bak = backup_file(path) if backup else None
+    lines = raw_lines(path)
+    index = section_index(lines, section)
+    if index is None:
+        if lines and lines[-1].strip() != "":
+            lines.append("")
+        lines += [f"{section}:", key_line, item]
+    else:
+        end = block_end_line(lines, index)
+        key = item_key(key_line)
+        at = next(
+            (i for i in range(index + 1, end) if _indent(lines[i]) == _indent(key_line) and item_key(lines[i]) == key),
+            None,
+        )
+        if at is None:
+            lines[index + 1 : index + 1] = [key_line, item]
+        else:
+            child_end = child_end_line(lines, at, end)
+            if any(_matches_id(l, str(fields["appid"])) for l in lines[at + 1 : child_end]):
+                return False, bak
+            lines.insert(child_end, item)
+    write(path, "\n".join(lines) + "\n")
+    return True, bak
+
+
 def remove_rendered(section: str, rendered: str, backup: bool = True) -> tuple[bool, str | None]:
     path = ensure_config()
     bak = backup_file(path) if backup else None

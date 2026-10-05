@@ -258,6 +258,8 @@ class ActivationScreen(Screen):
             f"made with the {r['method']} method in {took:.0f}s",
             "copied to the clipboard" if r["copied"] else "not copied (Copy on the Use tab does it)",
         ]
+        if r.get("denuvo"):
+            lines.append("added to DenuvoGames, so it only unlocks on the account that made the ticket")
         if r.get("note"):
             lines += ["", f"[#9db0e0]{r['note']}[/]"]
         want = r.get("want", "both")
