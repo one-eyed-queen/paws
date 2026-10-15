@@ -42,7 +42,7 @@ paws only edits the lines it needs to. ur comments, ur order and every value u d
 - **adds and removes games**
 - **takes dropped files** (.lua, .key, .manifest, or a .zip/.7z/.tar.gz/.pkg.tar.zst holding them — it reads inside and works out what's there)
 - **fills the config in for you** — drop a game's files and the appid, package, keys, manifests and dlc names land in the right sections, without touching the add-game screen
-- **makes tickets** (type 2, straight from the steam that's already running — no restart)
+- **makes tickets** (type 2, straight from the steam that's already running — no restart(expermiental))
 - **two looks:** 
 - **config editor**
 - **`paws doctor`** 
@@ -119,15 +119,7 @@ paws does all of this for u when u add a game, but this is what it writes in con
 3. the game's base AppId goes in `AppIds:`
 4. `UseWhitelist:` is set to `yes` (needed whenever u use AppIds)
 
-these four are the same on linux and windows — the config format didn't change, so a bundle u drop into a linux install writes exactly what OpenValve expects.
-
-#### compatibility
-
-HubCapTools should work with every x64 steam. the oldest one tested is from january 21, the newest one is the latest beta, so if all goes well u can stay on the latest beta for a long time.
-
-#### common question
-
-**why not AdditionalApps for games i wanna download?** it overwrites the owner id, and that breaks ur downloads. treat any game u download with this as if u actually own it, so it goes in AppIds, not AdditionalApps.
+these four are the same on linux and windows; the config format didn't change, so a bundle u drop into a linux install writes exactly what OpenValve expects.
 
 </details>
 
@@ -138,24 +130,24 @@ the install screen is three buttons in one row — **Install**, **Update**, **Un
 - **SLSsteam** → then asks which of the four assets it publishes: **Any** (portable `.7z`) or **Arch** (native pacman package), each in **release** or **debug**. the Arch package is greyed out unless you're on arch and family, and a flavour the release doesn't have is greyed out too
 - **HeadCrab** → its own installer, run in your terminal so you can watch it
 - **HubCapTools** → fetches, verifies and runs it (windows)
-- **OpenValve** → greyed out on both, because it's a manager: there is no download for paws to do, so it tells you that instead of pretending
+- **OpenValve** → greyed out on both, because it's a manager: there is no download for paws to do, so it tells you that instead of pretending just w8 for the releas e:3
 
-the two that can't run on your system stay visible but greyed, with the reason next to them — so you can see the whole family and which half is yours. which half that is comes from the os detector, so it can't disagree with `paws info`.
+the two that cannott run on your system stay visible but greyed with n reason next to them:— so you can see the whole family and which half is your which half that is comes from the os detector, so it can't disagree with `paws info`.
 
-**Update** and **Uninstall** work the same way, and both say plainly when they did nothing and why, instead of reporting a job that quietly changed nothing.
+**Update** and **Uninstall** kinda works the the same way, and both say plainly when they did nothing and why, instead of reporting a job that quietly changed nothing.
 
 ## what paws looks for
 
-paws works with one family of builds. they're all the same thing underneath — **SLSsteam-based** software that talks to steam — and they differ by who made them and whether the source is open:
+paws works with one family of builds. they sre all the same thing underneath **SLSsteam-based** software that talks to steam, and they differ by who made them and whether the source is open:
 
-| build | runs on | source |
-|---|---|---|
-| **SLSsteam** | linux | open |
-| **HeadCrab** | linux | closed |
-| **OpenValve** | windows | closed |
-| **HubCapTools** | windows | closed |
+| build | runs on |
+|---|---|
+| **SLSsteam** | linux |
+| **HeadCrab** | linux |
+| **OpenValve** | windows |
+| **HubCapTools** | windows |
 
-they're not competing tools and not forks of each other — HeadCrab, OpenValve and HubCapTools are each someone's own build *on top of* SLSsteam. that's why paws doesn't care which one you use: they all read the same config format, so **adding games, dropping bundles and editing config work identically on every one of them.** what differs is only how each one gets installed, and paws only automates that where there's something real to automate.
+they're not competing tools for the best  and not forks of each other — HeadCrab, OpenValve and HubCapTools are each someone's own build *on top of* SLSsteam (and ace knows the devs and the projects too and is fine with all so :p if u have any problem). that's why paws doesn't care which one you use: they all read the same config format, so **adding games, dropping bundles and editing config work identically on every one of them.** what differs is only how each one gets installed, and paws only automates that where there iss something real to automate,
 
 one command answers all of it, and it never guesses — if it can't tell, it says it can't tell:
 
@@ -167,7 +159,7 @@ it covers the os (name, family, arch, read-only-ness, package managers), steam (
 
 this is the same detector `paws doctor` and the home screen use, so all three always agree.
 
-## using it (CLI)
+## using it (CLI)- full version soon
 
     paws                 the menu
     paws doctor          check everything (add --fix to fill in missing config keys)
@@ -184,13 +176,13 @@ this is the same detector `paws doctor` and the home screen use, so all three al
 
 `paws --help` has the rest. most commands take `--json` if u wanna script them.
 
-## tickets (linux)
+## tickets (linux) ----windows soon
 
 `paws activate <appid>` asks the steam that's **already running** for a type 2 ticket and drops it into SLSsteam's cache itself. no killing steam, no relaunching it, no waiting for it to come back up.
 
 that works because SLSsteam reads `<config>/cache/encryptedTicket_<appid>.yaml` from disk whenever the live request doesn't return one, and hot-reloads that folder — so a ticket paws writes is picked up by the steam you already have open. which also means it works with no SLSsteam injected at all, or none installed.
 
-if steam isn't running, or that genuinely can't work, it falls back to starting steam with SLSsteam in it, same as before.
+if steam isnot running, or that genuinely can't work, it falls back to starting steam with SLSsteam in same as before.
 
 ## staying safe
 
