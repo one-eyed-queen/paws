@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 from ... import sls as sls_module
+from ...util import pkgmgr
 
 NAME = "sls"
 
@@ -12,9 +14,20 @@ def add_parser(subparsers, common):
     p.add_argument("action", choices=["install", "update", "uninstall", "latest"], default="install", nargs="?")
     p.add_argument("--source", choices=["github", "private", "forgejo", "local"], default="github")
     p.add_argument("--tag", help="specific GitHub release tag")
+    p.add_argument(
+        "--variant", choices=["any", "arch"], default="any", help="github only: the portable .7z or the arch package"
+    )
+    p.add_argument(
+        "--flavour", choices=["release", "debug"], default="release", help="github only: release or debug build"
+    )
     p.add_argument("--url", help="repo link (GitHub/Forgejo/GitLab/git) or .zip/.7z path for a private source")
     p.add_argument("--name", default="SLSsteam", help="what a private build is called (SLSsteam, HeadCrab)")
     p.add_argument("--no-desktop", action="store_true")
+    p.add_argument(
+        "--allow-unverified",
+        action="store_true",
+        help="windows only: run a HubCapTools build paws has no checksum for",
+    )
 
 
 def _say(args, payload, text):
@@ -25,39 +38,104 @@ def _latest(args):
     sls = sls_module.find_sls()
     latest = sls_module.fetch_latest_github_tag()
     installed = sls_module.installed_version(sls)
-    has_update = sls_module.update_available(sls, latest)
+    state = sls_module.update_state(sls, latest)
     _say(
         args,
-        {"installed": installed, "latest": latest, "update_available": has_update},
-        f"installed={installed or 'none'} latest={latest or '?'}" + ("  -> update available" if has_update else ""),
+        {
+            "installed": installed,
+            "latest": latest,
+            "state": state,
+            "update_available": sls_module.update_available(sls, latest),
+            "why": sls_module.update_reason(sls, latest),
+        },
+        f"installed={installed or 'none'} latest={latest or '?'}  -> {state}: {sls_module.update_reason(sls, latest)}",
     )
-    return 0 if latest else 1
+    # only 0 when we actually know. "can't tell" used to exit 0 and read as a clean bill of health
+    return 0 if state in (sls_module.NO, sls_module.YES) else 1
 
 
 def _uninstall(args):
-    if not sls_module.uninstall(sls_module.find_sls()):
-        _say(args, {"ok": False, "error": "nothing to uninstall"}, "nothing to uninstall")
+    sls = sls_module.find_sls()
+    if sls and sls.managed_by:
+        # paws refuses to delete files a package manager owns. don't report that as a plain
+        # failure either - it's a "run this yourself" case, and saying so is the whole point
+        hint = pkgmgr.remove_hint("slssteam", sls.managed_by)
+        _say(
+            args,
+            {"ok": False, "removed": False, "managed_by": sls.managed_by, "command": hint},
+            f"nothing was removed: SLSsteam here belongs to {sls.managed_by} ({sls.lib_dir}).\n"
+            f"paws never edits files a package manager owns - run this yourself:\n  {hint}",
+        )
         return 1
-    _say(args, {"ok": True, "action": "uninstall"}, "uninstalled, config and tickets left alone")
+    if not sls_module.uninstall(sls):
+        _say(args, {"ok": False, "removed": False, "error": "nothing to uninstall"}, "nothing to uninstall")
+        return 1
+    _say(args, {"ok": True, "removed": True, "action": "uninstall"}, "uninstalled, config and tickets left alone")
     return 0
 
 
 def run(args) -> int:
     if args.action == "latest":
         return _latest(args)
+    before = sls_module.find_sls()
+    before_version = sls_module.installed_version(before)
     try:
         if args.action == "uninstall":
             return _uninstall(args)
+        if args.action == "update" and args.source == "github" and not args.tag:
+            # say up front when there is nothing to do, instead of downloading the same bytes
+            # again and reporting a cheerful "done"
+            latest = sls_module.fetch_latest_github_tag()
+            state = sls_module.update_state(before, latest)
+            if state == sls_module.NO:
+                _say(
+                    args,
+                    {"ok": True, "action": "update", "changed": False, "why": sls_module.update_reason(before, latest)},
+                    f"already up to date ({sls_module.update_reason(before, latest)})",
+                )
+                return 0
+            if state == sls_module.UNKNOWN and args.json:
+                _say(
+                    args,
+                    {"ok": True, "action": "update", "changed": None, "why": sls_module.update_reason(before, latest)},
+                    f"can't compare versions, fetching the newest github build anyway ({sls_module.update_reason(before, latest)})",
+                )
         source = sls_module.SlsSource(
-            name=args.name if args.source == "private" else args.source, kind=args.source, url=args.url, tag=args.tag
+            name=args.name if args.source == "private" else args.source,
+            kind=args.source,
+            url=args.url,
+            tag=args.tag,
+            variant=args.variant,
+            flavour=args.flavour,
         )
-        result = sls_module.install_release(source, write_desktop=not args.no_desktop)
+        result = sls_module.install_release(
+            source, write_desktop=not args.no_desktop, allow_unverified=args.allow_unverified
+        )
     except (sls_module.SlsError, OSError) as error:
         _say(args, {"ok": False, "error": str(error)}, f"paws sls {args.action}: {error}")
         return 1
+    so = result.sls_so if result else None
+    # verify rather than trust: no library on disk means nothing happened, and reporting ok for
+    # that is what made "update" look like it worked when it never touched anything
+    if not so or not Path(so).exists():
+        _say(
+            args,
+            {"ok": False, "action": args.action, "changed": False, "error": "nothing was written"},
+            f"paws sls {args.action}: nothing was written (no built library in that file)",
+        )
+        return 1
+    after_version = sls_module.installed_version(sls_module.find_sls())
     _say(
         args,
-        {"ok": True, "action": args.action, "so": str(result.sls_so) if result and result.sls_so else None},
-        "done",
+        {
+            "ok": True,
+            "action": args.action,
+            "changed": after_version != before_version,
+            "so": str(so),
+            "version": after_version,
+        },
+        f"{args.action}: {before_version} -> {after_version}"
+        if after_version != before_version
+        else f"{args.action}: {after_version}",
     )
     return 0

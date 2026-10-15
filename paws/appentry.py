@@ -55,7 +55,7 @@ def entry_text(exec_path: str | None = None, icon: str | None = None) -> str:
         "Type=Application\n"
         "Name=paws\n"
         "GenericName=SLSsteam Manager\n"
-        "Comment=Menu-driven SLSsteam manager for Linux\n"
+        "Comment=Menu-driven SLSsteam manager for Linux and Windows\n"
         f"Exec={exec_path or _exec_path()} --window\n"
         "Terminal=false\n"
         f"Icon={icon or _icon_value()}\n"

@@ -11,8 +11,8 @@ from ..config.where import find_config
 from ..steam.find import find_steam
 from ..steam.library import installed_games, library_paths
 from .find import find_sls
-from .grabber import grab
-from .tickets import Ticket, cache_dir, load_ticket_file, to_clipboard_text
+from .grabber import GrabResult, grab
+from .tickets import Ticket, cache_dir, load_ticket_file, make_ticket_file, to_clipboard_text
 
 DEFAULT_TIMEOUT = 25.0
 STEAM_START = 90.0  # extra time when activation has to start steam itself and wait for it to log in
@@ -128,21 +128,30 @@ def not_installed(appid: str) -> bool:
     return bool(library_paths()) and str(appid) not in installed_games()
 
 
-def _grab_without_the_game(appid, st, sls, timeout) -> str | None:
-    """the helper only works against a logged-in steam with SLSsteam in it, SLSsteam is what saves the tickets"""
-    if not (steam.is_running() and steam.sls_injected()):
-        if steam.is_running():
-            steam.kill_steam()
-            time.sleep(1.0)
-        steam.launch(st, sls)
-        timeout += STEAM_START
-    deadline = time.time() + timeout
-    while True:
-        error = grab(appid, max(5.0, deadline - time.time()))
-        # steam refuses the connection until it has started and logged in, so only that one is worth a retry
-        if error is None or time.time() >= deadline or not error.startswith("steam wouldn't let"):
-            return error
-        time.sleep(3.0)
+def _grab_without_the_game(appid, st, sls, timeout) -> GrabResult:
+    """ask the running steam for a type 2 ticket without restarting anything.
+
+    the helper writes the ticket straight into SLSsteam's cache, which the already-running steam
+    hot-reloads, so this works against a steam that has never had SLSsteam injected - which is the
+    whole point: no kill, no relaunch, no waiting. if that genuinely can't work (steam isn't
+    running at all), fall back to starting one with SLSsteam in it, since a plain steam has
+    nothing to ask.
+    """
+    if steam.is_running():
+        got = grab(appid, max(5.0, timeout))
+        if got.ok:
+            return got
+        first_error = got.error
+    else:
+        first_error = None
+    # steam isn't running: it has to be started with SLSsteam for the ticket to reach the cache
+    steam.launch(st, sls)
+    result = grab(appid, max(5.0, timeout + STEAM_START))
+    if result.ok:
+        return result
+    if first_error and not result.error:
+        result.error = first_error
+    return result
 
 
 def missing_tickets(appid: str, tickets: list[Ticket], want: str) -> list[str]:
@@ -189,31 +198,54 @@ def _activate(appid, added, timeout, copy_to_clipboard, auto_manage, steam_bin, 
     st = steam_bin or find_steam()
     cache = cache_dir()
     result = {"method": None, "tickets": [], "copied": False, "error": None, "want": want, "missing": []}
-    if not sls or not sls.config:
-        result["error"] = "SLSsteam is not installed"
-        return result
-    if sls.kind == "windows":
-        from ..windows.port import UNDER_CONSTRUCTION
-
-        result["error"] = UNDER_CONSTRUCTION
-        return result
-
-    added.append(ensure_subscribed(appid))
 
     if not_installed(appid):
-        if not auto_manage and not (steam.is_running() and steam.sls_injected()):
-            result["error"] = "steam isn't running with SLSsteam, and paws was told not to start it"
+        if not auto_manage and not steam.is_running():
+            result["error"] = "steam isn't running, and paws was told not to start it"
             return result
-        result["method"] = "helper"
-        error = _grab_without_the_game(appid, st, sls, timeout)
-        found = _poll(cache, appid, timeout=GRACE + 2, want=want)
-        if error and not found:
-            result["error"] = error
+        # ask the steam that's already up first. it answers over its own IPC, and the helper
+        # drops the ticket into the cache, so nothing is restarted and nothing has to be installed
+        result["method"] = "cache"
+        got = _grab_without_the_game(appid, st, sls, timeout)
+        if got.wrote_cache and cache is not None:
+            # steam may write its own copy a moment later; give it a moment so the file we just
+            # wrote is the one that ends up on disk
+            found = _poll(cache, appid, timeout=GRACE + 2, want=want)
+        elif got.ok and got.payload:
+            # no cache dir to write into - keep the ticket in memory so the screen can still show it
+            try:
+                found = [make_ticket_file(appid, got.steam_id or "0", got.payload, True)]
+            except Exception:
+                found = []
+        else:
+            found = []
+        if got.error and not found:
+            result["error"] = got.error
+        if got.wrote_cache:
+            result["cache"] = str(got.cache_path)
+            result["no_restart"] = True
         result["tickets"] = found
         result["missing"] = missing_tickets(appid, found, want)
         if found and copy_to_clipboard:
             result["copied"] = any(cb_copy(to_clipboard_text(t)) for t in found)
         return result
+
+    # everything past here needs SLSsteam actually injected. the grabber above does not, which is
+    # why it goes first, and why it is the one path that still works with SLSsteam uninstalled
+    if not sls or not sls.config:
+        result["error"] = "SLSsteam is not installed"
+        return result
+    if sls.kind == "windows":
+        from ..windows.port import WORKS_WITHOUT_PORT
+
+        result["error"] = (
+            "HubCapTools is installed and paws can read its config and cache, but it has no way to "
+            "hand paws a type 2 ticket yet - that needs knowing how the port serves them. nothing "
+            "else is blocked: " + WORKS_WITHOUT_PORT
+        )
+        return result
+
+    added.append(ensure_subscribed(appid))
 
     # no `install|appid|0` through the API: that queued a real download and is why steam jumped to install
     api_on = get_scalar("API") == "yes"

@@ -24,7 +24,11 @@ def uninstall(sls: SlsInstall | None) -> bool:
     if sls.kind == "windows":
         from ..windows import port
 
-        port.unsupported()
+        # HubCapTools: only ever two things on disk that paws can positively claim (the proxy dll
+        # and its own folder). OpenValve's %AppData% config is reported but never deleted - paws
+        # didn't create it and that folder is the standard SLSsteam location
+        removed = port.remove()
+        return any(not r.endswith("stays)") for r in removed)
     if sls.managed_by:
         raise SlsError(
             f"SLSsteam here is owned by {sls.managed_by} ({sls.lib_dir}); paws won't touch package files. "

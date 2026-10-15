@@ -46,7 +46,8 @@ def steam_dirs():
 
 
 def footprint():
-    """what headcrab put on this machine that isn't SLSsteam itself"""
+    """what headcrab put on this machine. headcrab is its own SLSsteam build, not a wrapper
+    around one - it installs SLSsteam underneath, so these are the extra bits on top"""
     found = []
     for path in (
         HOME / ".headcrab",

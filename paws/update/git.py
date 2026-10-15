@@ -74,3 +74,22 @@ def subjects(path: Path, tip: str, limit: int = 5) -> list[str]:
 
 def fast_forward(path: Path, tip: str):
     _run(["merge", "--ff-only", "--quiet", tip], path, timeout=30.0)
+
+
+def hard_reset(path: Path, tip: str):
+    """throw the working tree away and put it exactly on tip. this is what --force means, and it
+    is the only way past a checkout that has local edits or its own commits: everything in the
+    working tree is discarded, tracked and untracked alike"""
+    _run(["reset", "--hard", "--quiet", tip], path, timeout=60.0)
+
+
+def stash(path: Path) -> str | None:
+    """put local changes aside instead of deleting them, so a forced update can be undone by hand.
+    returns the stash ref, or None when there was nothing to stash"""
+    try:
+        out = _run(
+            ["stash", "push", "--quiet", "--include-untracked", "-m", "paws: before --force update"], path, timeout=60.0
+        )
+    except GitError:
+        return None
+    return out or "stash@{0}"

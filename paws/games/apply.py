@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-
 from .. import config
 from ..steam import depotcache as dcache
 from ..steam import vdf
@@ -101,7 +100,10 @@ def _nudge_steam(appid: str) -> bool:
 def _apply_cfg(plan, c):
     kind, _, rest = c.detail.partition(" ")
     value = rest.split()[0]
-    name = plan.names.get(value.partition(":")[0]) or plan.name or value
+    # manifest and token rows are written as "id:value" - look the name up by the id alone, or
+    # the trailing comment comes out as the whole row ("621:999888777") instead of a name
+    entry_id = value.partition(":")[0]
+    name = plan.names.get(entry_id) or plan.name or entry_id
     out = []
 
     def put(section: str, line: str):

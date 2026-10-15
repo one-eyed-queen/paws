@@ -17,12 +17,30 @@ SYSTEM_LIB_DIRS = (
 
 SYSTEM_APPS_DIR = Path("/usr/share/applications")
 
+# the two builds name the same two files differently: the portable .7z ships SLSsteam.so and
+# library-inject.so, the arch package installs them as libSLSsteam.so and libSLS-library-inject.so.
+# checking for one name only is how a freshly installed arch build got skipped in favour of a
+# system package, so both are looked for everywhere.
+LIB_NAMES = ("SLSsteam.so", "libSLSsteam.so")
+INJECT_NAMES = ("library-inject.so", "libSLS-library-inject.so")
+
+
+def first_existing(d: Path, names) -> Path | None:
+    for name in names:
+        if fs.exists(d / name):
+            return d / name
+    return None
+
+
+def lib_in(d: Path) -> Path | None:
+    return first_existing(d, LIB_NAMES)
+
 
 def _fill_from_dir(sls, d):
     sls.kind = "flatpak" if "flatpak" in str(d) or "var/app" in str(d) else "native"
     sls.lib_dir = d
-    sls.sls_so = d / "SLSsteam.so" if fs.exists(d / "SLSsteam.so") else None
-    sls.inject_so = d / "library-inject.so" if fs.exists(d / "library-inject.so") else None
+    sls.sls_so = lib_in(d)
+    sls.inject_so = first_existing(d, INJECT_NAMES)
     sls.tools = d / "tools" if fs.exists(d / "tools") else None
 
 
@@ -74,8 +92,8 @@ def find_sls(config: Path | None = None) -> SlsInstall | None:
     for d in candidates:
         if not fs.exists(d):
             continue
-        if not fs.exists(d / "SLSsteam.so"):
-            fallback = fallback or d
+        if lib_in(d) is None:
+            fallback = fallback or d  # a folder that exists but has no library yet
             continue
         _fill_from_dir(sls, d)
         break

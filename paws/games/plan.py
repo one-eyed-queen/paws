@@ -63,13 +63,16 @@ def plan_from_bundle(bundle: ManifestBundle, name: str = "") -> GamePlan:
     appid = str(bundle.appid or (flat["app_ids"][0] if flat["app_ids"] else ""))
     plan = GamePlan(appid=appid, name=name or "")
     # a lua unlocker file calls addappid() for the game AND for each of its depots (that's how
-    # it registers each depot's decryption key) - an id that also gets a manifest id is a
-    # depot, not a real app, and must not end up in AdditionalApps/AppIds (SLSsteam would try to
-    # fake ownership of a "game" that doesn't exist, alongside the real one). the manifest id can
-    # come from setManifestid() inside the .lua itself, OR from a standalone .manifest file
-    # dropped alongside it (real dumps do both - a depot doesn't get a free pass just because its
-    # manifest id happened to arrive as a separate file instead of a lua call)
+    # it registers each depot's decryption key) - an id that also gets a manifest id, or that
+    # arrives already carrying a decryption key, is a depot and not a real app, and must not end
+    # up in AdditionalApps/AppIds (SLSsteam would try to fake ownership of a "game" that doesn't
+    # exist, alongside the real one). a depot id can show up three ways: setManifestid() inside
+    # the .lua, a standalone .manifest file dropped alongside it, or an AddAppID() carrying a key
+    keyed_depots = {d for lm in bundle.luas for d, _, _ in lm.decryption_keys}
     depot_ids = {d for lm in bundle.luas for d, _, _ in lm.manifest_ids} | {d for d, _, _p in bundle.manifests}
+    depot_ids |= keyed_depots
+    # the game's own appid can legitimately appear in the keyed set (AddAppID(620, "key") on a
+    # single-depot game), so it always stays a real app
     real_apps = [a for a in flat["app_ids"] if a not in depot_ids or str(a) == appid]
     plan.additional_apps = [str(a) for a in real_apps] or ([appid] if appid else [])
     plan.decryption_keys = {str(k): v for k, v in flat["depots"].items()}

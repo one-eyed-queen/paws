@@ -16,6 +16,68 @@ ACCEPTED = (".manifest", ".lua", ".key")
 TICKET_NAME = re.compile(r"^(?:encryptedTicket|ticket)_(\d+)\.yaml$")
 MAX_TICKET_BYTES = 64 * 1024
 BUILD_HINT = re.compile(r"(?i)slssteam|headcrab|ticketforge|paws")
+# what a *built* release actually contains. github's auto-generated "source code" archive for
+# SLSsteam is named SLSsteam-<tag>.zip too, so matching on the name alone called a pile of
+# .cpp files an installable build - it has to be the compiled artefacts that count
+BUILD_ARTIFACTS = (".so", ".dll", ".dylib")
+BUILD_DIRS = ("bin/", "tools/", "res/")
+SOURCE_MARKERS = (".cpp", ".c", ".h", ".hpp", "cmakelists.txt", "makefile", ".gitignore", ".github/")
+PACKAGE_MARKERS = (".pkg.tar.zst", ".pkg.tar.xz", ".deb", ".rpm", ".apk")
+
+
+def _member_names(p: Path) -> list[str]:
+    """every path inside an archive, whatever kind it is. returns [] if it can't be read"""
+    from .sls.archive import is_archive, is_tar_name
+
+    lowered = p.name.lower()
+    if lowered.endswith(".zip"):
+        try:
+            with zipfile.ZipFile(p) as z:
+                return [info.filename for info in z.infolist()]
+        except Exception:
+            return []
+    if lowered.endswith(".7z"):
+        try:
+            import py7zr
+
+            with py7zr.SevenZipFile(p) as z:
+                return list(z.getnames())
+        except Exception:
+            return []
+    if is_archive(p) or is_tar_name(lowered):
+        try:
+            import tarfile
+
+            with tarfile.open(p) as t:
+                return [m.name for m in t.getmembers()]
+        except Exception:
+            return []
+    return []
+
+
+def _is_game_bundle(p: Path) -> bool:
+    return any(name.lower().endswith(ACCEPTED) for name in _member_names(p))
+
+
+def _is_package(p: Path) -> bool:
+    """a distro package (an arch .pkg.tar.zst release, a .deb, ...) rather than a depot bundle"""
+    return p.name.lower().endswith(PACKAGE_MARKERS)
+
+
+def _looks_like_build(p: Path) -> bool:
+    """only a real build: compiled artefacts or a release layout. never a source tarball, and
+    never a bundle of .lua/.key/.manifest (those are game data, not a program)"""
+    names = _member_names(p)
+    if not names:
+        return False
+    if any(name.lower().endswith(ACCEPTED) for name in names):
+        return False
+    if any(name.lower().endswith(SOURCE_MARKERS) for name in names):
+        return False
+    lowered = [name.lower().lstrip("./") for name in names]
+    if any(name.endswith(BUILD_ARTIFACTS) for name in lowered):
+        return True
+    return any(name.startswith(BUILD_DIRS) for name in lowered)
 
 
 def is_ticket_file(p: Path) -> bool:
@@ -31,29 +93,11 @@ def _token_to_path(tok):
 
 
 def _zip_holds_game_files(p):
-    try:
-        with zipfile.ZipFile(p) as z:
-            return any(Path(info.filename).suffix.lower() in ACCEPTED for info in z.infolist())
-    except Exception:
-        return False
+    return _is_game_bundle(p)
 
 
 def _zip_looks_like_build(p):
-    try:
-        with zipfile.ZipFile(p) as z:
-            infos = z.infolist()
-    except Exception:
-        return False
-    if any(Path(info.filename).suffix.lower() in ACCEPTED for info in infos):
-        return False
-    for info in infos:
-        nm = Path(info.filename)
-        base = nm.name.lower()
-        if nm.suffix.lower() == ".so" or BUILD_HINT.search(info.filename):
-            return True
-        if base.startswith("slssteam") or base == "headcrab":
-            return True
-    return False
+    return _looks_like_build(p)
 
 
 def build_zip_from_text(text: str) -> Path | None:
@@ -144,6 +188,8 @@ def paths_in(text: str) -> list[Path]:
 
 
 def dropped_files(text: str) -> list[Path] | None:
+    from .sls.archive import is_archive
+
     paths = paths_in(text)
     if not paths:
         return None
@@ -153,7 +199,10 @@ def dropped_files(text: str) -> list[Path] | None:
                 return None
             if p.suffix.lower() in ACCEPTED or is_ticket_file(p):
                 continue
-            if p.suffix.lower() == ".zip" and _zip_holds_game_files(p):
+            # .zip/.7z/.tar.* all carry bundles in the wild - read the contents rather than
+            # trusting the extension, or a .pkg.tar.zst would look like an accepted drop and
+            # then quietly do nothing
+            if is_archive(p) and _is_game_bundle(p):
                 continue
             return None
         except OSError:
@@ -207,12 +256,15 @@ def import_files(paths: list[Path]) -> DropResult:
 
     bundle = ManifestBundle()
     problems = []
+    warnings = []
     tmp = None
+    from .sls.archive import is_archive
+
     for p in paths:
         try:
-            if p.suffix.lower() == ".zip":
+            if is_archive(p):
                 if tmp is None:
-                    tmp = Path(tempfile.gettempdir()) / f"paws-unz-{p.stem}"
+                    tmp = Path(tempfile.gettempdir()) / f"paws-unz-{os.getpid()}-{p.stem}"
                 bundle.add_archive(p, tmp)
             else:
                 bundle.add_file(p)
@@ -224,6 +276,10 @@ def import_files(paths: list[Path]) -> DropResult:
         if has_keys_only:
             plan.decryption_keys = {}
             problems.append("a .key on its own doesn't say which depot it's for: drop its .lua with it")
+        # a .key we couldn't pin to one depot is a warning, not a failure: everything else in
+        # the drop is still fine, and the key simply doesn't get written
+        for _ in bundle.unpaired_keys():
+            warnings.append("a .key didn't name its depot and nothing in the drop said which one it was for")
         changes = plan.changes()
         if not changes:
             return DropResult(False, "nothing to add", problems or ["those files didn't have anything paws can use"])
@@ -235,10 +291,15 @@ def import_files(paths: list[Path]) -> DropResult:
             shutil.rmtree(tmp, ignore_errors=True)
     counts = plan.counts()
     what = ", ".join(f"{n} to {target}" for target, n in sorted(counts.items()))
-    via = " from .zip" if any(p.suffix.lower() == ".zip" for p in paths) else ""
+    via = " from " + paths[0].name if len(paths) == 1 and is_archive(paths[0]) else ""
     title = f"added {plan.appid}{via}" if plan.appid else "added"
-    lines = [what, *result["errors"], *problems]
-    return DropResult(not result["errors"], title, lines)
+    # a missing config.vdf / depotcache is the user's steam not being installed (or SLSsteam
+    # not being there), not a failure of this drop - the config.yaml rows really were written.
+    # showing that as a red cross made every drop look broken
+    soft = [e for e in result["errors"] if e.startswith(("config.vdf:", "depotcache:"))]
+    hard = [e for e in result["errors"] if e not in soft]
+    lines = [what, *hard, *soft, *problems, *warnings]
+    return DropResult(not hard, title, lines)
 
 
 def wants_text(parsed, focus_is_input: bool = False, focus_is_textarea: bool = False, text: str = "") -> bool:

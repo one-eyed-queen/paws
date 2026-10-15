@@ -16,5 +16,6 @@ class SlsInstall:
     tools: Path | None = None
     desktop_used: bool = False
     managed_by: str | None = None
+    port: str | None = None  # windows only: which port owns this (hubcaptools / openvalve)
     path_wrappers: list[Path] = field(default_factory=list)
     installed_ts: float | None = None

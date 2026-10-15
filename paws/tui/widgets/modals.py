@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from textual import on
 from textual.binding import Binding
-from textual.containers import Container, Horizontal
+from textual.containers import Container, Horizontal, Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Label, TextArea
 
@@ -116,6 +116,63 @@ class ModalInfo(ModalScreen[None]):
         self.dismiss(None)
 
     def action_close(self):
+        self.dismiss(None)
+
+
+class ModalPick(ModalScreen[str | None]):
+    """a list of choices, one of which comes back. used for the cascading "what are we installing"
+    questions, so the install flow doesn't need a bespoke modal per step.
+
+    options is a list of (label, value), (label, value, note) or (label, value, note, hint).
+    a `note` disables the option and explains why; a `hint` is just extra wording on a perfectly
+    usable option. keeping them apart matters - a description is not a reason to grey something out.
+    """
+
+    BINDINGS = [Binding("escape", "cancel", "cancel")]
+
+    def __init__(self, title: str, prompt: str = "", options=(), **kwargs):
+        super().__init__(**kwargs)
+        self.title_text = title
+        self.prompt = prompt
+        self.options = list(options)
+        self.chosen: str | None = None
+
+    def compose(self):
+        with Container(id="modal-pick"):
+            yield Label(f"[b]{self.title_text}[/b]", id="mpk-title")
+            if self.prompt:
+                yield Label(self.prompt, id="mpk-prompt", markup=False)
+            with Vertical(id="mpk-options"):
+                for index, (label, _value, note, hint) in enumerate(self._rows()):
+                    text = f"{label}  [#7d8aa8]{note or hint}[/]" if (note or hint) else label
+                    yield Button(text, id=f"mpkopt-{index}", disabled=bool(note))
+            with Horizontal(id="mpk-buttons"):
+                yield Button("Cancel", variant="error", id="mpk-cancel")
+
+    def _rows(self):
+        out = []
+        for option in self.options:
+            option = tuple(option)
+            out.append(option if len(option) == 4 else option + (None,) * (4 - len(option)))
+        return out
+
+    def on_mount(self):
+        first = next((b for b in self.query(Button) if not b.disabled and (b.id or "").startswith("mpkopt-")), None)
+        (first or self.query_one("#mpk-cancel", Button)).focus()
+
+    @on(Button.Pressed)
+    def _choose(self, event: Button.Pressed):
+        button_id = event.button.id or ""
+        if button_id == "mpk-cancel":
+            self.dismiss(None)
+            return
+        if not button_id.startswith("mpkopt-"):
+            return
+        index = int(button_id.split("-", 1)[1])
+        self.chosen = self._rows()[index][1]
+        self.dismiss(self.chosen)
+
+    def action_cancel(self):
         self.dismiss(None)
 
 

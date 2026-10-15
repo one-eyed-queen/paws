@@ -6,18 +6,25 @@ import time
 
 from textual import events
 from textual.app import App
-from textual.filter import NoColor
 from textual.binding import Binding
 from textual.css.query import NoMatches
+from textual.filter import NoColor
 from textual.screen import ModalScreen
 from textual.theme import Theme
 from textual.widgets import Input, TextArea
 
-from .. import drop
-from .. import notify
-from .. import settings
-from .. import textdrop
+from .. import drop, notify, settings, textdrop
 from .jobs import Job
+
+
+def _escape_markup(text: str) -> str:
+    """paths get shown in markup-rendered labels, so a "[" in a folder name would otherwise
+    swallow the rest of the sentence"""
+    from rich.markup import escape
+
+    return escape(text)
+
+
 from .screens import HomeScreen
 from .screens.drop import DropScreen
 from .underlay import Underlay
@@ -288,20 +295,36 @@ class PawsApp(App):
             build = sls.SlsSource(product, "private", url=source)
             self.run_worker(lambda: self._install_build(build), thread=True, exclusive=True, group="sls-run")
 
+        # the path goes into a markup-rendered label, so a "[" in it would eat the rest of the
+        # sentence. escape it rather than let the dialog fall apart
         self.push_screen(
-            Confirm(f"{source}\nlooks like a {product} build. install it as a private build?"),
+            Confirm(f"{_escape_markup(source)}\nlooks like a {product} build. install it as a private build?"),
             answer,
         )
 
     def _install_build(self, source):
+        from pathlib import Path
+
         from .. import sls
 
         try:
-            sls.install_release(source)
+            result = sls.install_release(source)
         except Exception as error:
             self.call_from_thread(self.tell, "couldn't install build", str(error)[:200], "error")
             return
-        self.call_from_thread(self.tell, "SLSsteam installed", "private build installed")
+        # "it didn't raise" is not the same as "it installed". an archive with no compiled
+        # library in it used to come back clean and report a cheerful success while writing
+        # nothing, which is why dropping a release looked like it did nothing at all
+        so = getattr(result, "sls_so", None) if result else None
+        if not so or not Path(so).exists():
+            self.call_from_thread(
+                self.tell,
+                "SLSsteam not installed",
+                "no built library in that file - looks like source code, not a release",
+                "error",
+            )
+            return
+        self.call_from_thread(self.tell, "SLSsteam installed", f"{Path(so).name} in place - restart steam to load it")
 
     def _fit_to_height(self, rows):
         self.set_class(rows < 30, "-short")

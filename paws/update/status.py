@@ -102,3 +102,76 @@ def apply(status: Status, installer: Callable[[Path], tuple[bool, str]] = reinst
 
 def record(status: Status):
     state.save(checked_at=time.time(), state=status.state, remote=status.remote, local=status.local)
+
+
+def force(url: str | None = None, branch: str | None = None, keep_changes: bool = True) -> Status:
+    """get onto the remote tip whatever git thinks of the checkout.
+
+    plain update stops at "blocked" - local edits, or commits that aren't ours - because a
+    fast-forward would fail or silently drop work. --force is the deliberate override: local
+    changes get stashed by default so they can be recovered by hand, then the checkout is reset
+    onto the remote tip and reinstalled.
+
+    an unmanaged install (not a git checkout, e.g. a plain `pip install paws`) still can't be
+    force-updated: there's nothing to reset. that reports honestly instead of claiming success.
+    """
+    url, branch = url or repo_url(), branch or repo_branch()
+    checkout = find_checkout()
+    if checkout is None:
+        return Status("unmanaged", "not a git checkout, so --force has nothing to work on (use your package manager)")
+
+    try:
+        local = git.head(checkout)
+    except git.GitError as error:
+        return Status("error", f"couldn't read the local build: {error}", checkout=checkout)
+    try:
+        remote = git.fetch(checkout, url, branch)
+    except git.GitError as error:
+        return Status("offline", f"couldn't reach the repo ({error})", local=local, checkout=checkout)
+
+    try:
+        subs = git.subjects(checkout, remote)
+        behind = git.count_behind(checkout, remote)
+        dirty = git.is_dirty(checkout)
+    except git.GitError as error:
+        return Status(
+            "error", f"couldn't compare with the repo: {error}", local=local, remote=remote, checkout=checkout
+        )
+
+    stashed = ""
+    if keep_changes and (dirty or not git.can_fast_forward(checkout, remote)):
+        ref = git.stash(checkout)
+        if ref:
+            stashed = f" local changes were stashed ({ref})"
+
+    try:
+        git.hard_reset(checkout, remote)
+    except git.GitError as error:
+        return Status("error", f"forced update failed: {error}", local, remote, behind, subs, checkout)
+
+    ok, why = reinstall(checkout)
+    if not ok:
+        try:
+            git.hard_reset(checkout, local)
+        except git.GitError:
+            pass
+        return Status(
+            "error",
+            f"install failed, rolled back to {git.short(local)} ({why})",
+            local,
+            remote,
+            behind,
+            subs,
+            checkout,
+        )
+    state.save(installed=remote)
+    note = stashed or (" nothing was changed locally" if not dirty else "")
+    return Status(
+        "updated",
+        f"forced to {git.short(remote)}{note}",
+        local,
+        remote,
+        behind,
+        subs,
+        checkout,
+    )

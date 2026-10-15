@@ -5,6 +5,7 @@ import importlib
 NAMES = (
     "menu",
     "doctor",
+    "info",
     "add",
     "remove",
     "activate",

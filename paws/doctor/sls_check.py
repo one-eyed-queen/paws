@@ -9,10 +9,59 @@ from .result import CheckResult
 
 def sls_checks(sls) -> list:
     if os.name == "nt":
-        from ..windows.port import UNDER_CONSTRUCTION
+        from ..windows import port
+        from ..windows.port import BLOCKED_WITHOUT_PORT, WORKS_WITHOUT_PORT
 
-        found = f"config={sls.config}" if sls else "no %AppData%\\SLSsteam\\config.yaml yet"
-        return [CheckResult(True, "Windows (under construction)", f"{found}. {UNDER_CONSTRUCTION}", "info")]
+        seen = port.status()
+        out = []
+        if seen["port"] == "openvalve":
+            out.append(
+                CheckResult(
+                    True,
+                    "OpenValve detected",
+                    f"managing {seen['openvalve_config']} - it's a manager, so there is nothing to install "
+                    "or update; paws reads and writes that config directly",
+                    "ok",
+                )
+            )
+        elif seen["port"] == "hubcaptools":
+            out.append(
+                CheckResult(
+                    True,
+                    "HubCapTools detected",
+                    f"proxy dll at {seen['dll']} (installed={seen['version'] or 'unknown'})",
+                    "ok",
+                )
+            )
+        elif seen["has_config"]:
+            out.append(
+                CheckResult(
+                    False,
+                    "HubCapTools config but no proxy dll",
+                    f"config at {seen['config_dir']} but {port.DLL_NAME} isn't next to steam.exe, so it won't load",
+                    "warn",
+                )
+            )
+        else:
+            out.append(
+                CheckResult(
+                    False,
+                    "HubCapTools not installed",
+                    "use Install / Update SLSsteam - it fetches the installer from "
+                    f"{port.HUB_CAP_REPO} and verifies it. steam has to be closed first",
+                    "warn",
+                )
+            )
+        out.append(CheckResult(True, "What works on windows anyway", WORKS_WITHOUT_PORT, "info"))
+        out.append(
+            CheckResult(
+                True,
+                "Still blocked",
+                f"ticket generation (needs a port that can serve them): {BLOCKED_WITHOUT_PORT}",
+                "info",
+            )
+        )
+        return out
     headcrab = sls_module.headcrab.footprint()
     if not sls and not headcrab:
         return [
@@ -22,7 +71,14 @@ def sls_checks(sls) -> list:
     if not sls:
         return [
             CheckResult(True, "HeadCrab found", f"{len(headcrab)} thing(s) of it on this machine", "info"),
-            CheckResult(False, "SLSsteam NOT installed", "use Install/Update SLSsteam", "warn"),
+            # headcrab is its own SLSsteam build rather than a wrapper, so there's nothing to fix -
+            # it just brings its own copy. say that instead of telling them to install it again
+            CheckResult(
+                True,
+                "SLSsteam not installed separately",
+                "HeadCrab installs SLSsteam underneath itself, so this is expected - nothing to do",
+                "ok",
+            ),
         ]
     out = [
         CheckResult(

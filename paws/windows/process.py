@@ -28,6 +28,12 @@ def pids(image: str) -> list[str]:
     return [row[1] for row in _rows(r.stdout) if row[0].lower() == image.lower() and row[1].isdigit()]
 
 
+def steam_running() -> bool:
+    """whether the steam client is up. the install has to refuse while it is: HubCapTools writes its
+    dll next to steam.exe, and a running client keeps using what it already loaded"""
+    return bool(pids("steam.exe"))
+
+
 def kill(image: str, force: bool = False) -> bool:
     r = _run(["taskkill", *(["/f"] if force else []), "/t", "/im", image])
     return r is not None and r.returncode == 0

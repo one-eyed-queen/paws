@@ -215,7 +215,7 @@ VerticalScroll {
     overflow-x: auto;  /* narrow terminal scrolls the buttons instead of pushing them off */
 }
 
-#modal-input, #modal-confirm, #modal-info, #modal-paste {
+#modal-input, #modal-confirm, #modal-info, #modal-paste, #modal-pick {
     width: 72;
     max-width: 96%;
     height: auto;
@@ -223,7 +223,7 @@ VerticalScroll {
     padding: 1 2 1 2;
 }
 
-ModalInput, Confirm, ModalInfo, ModalPaste {
+ModalInput, Confirm, ModalInfo, ModalPaste, ModalPick {
     align: center middle;
     /* opaque, not dimmed: a dim (semi-see-through) tint blends into the screen under it, which corrupts the colour
        kitty header pictures are keyed by. fully opaque means that screen isn't drawn at all while the popup is up
@@ -245,7 +245,7 @@ ModalInput, Confirm, ModalInfo, ModalPaste {
     width: 100%;
 }
 
-#mi-buttons, #c-buttons, #mp-buttons {
+#mi-buttons, #c-buttons, #mp-buttons, #mpk-buttons {
     height: 3;
     align-horizontal: right;
 }
@@ -293,6 +293,21 @@ ModalInput, Confirm, ModalInfo, ModalPaste {
     background: transparent;
     padding: 1 2 1 2;
     margin: 1 2 0 2;
+}
+
+#mpk-prompt {
+    height: auto;
+    margin: 1 0 0 0;
+    color: #9db0e0;
+}
+#mpk-options {
+    height: auto;
+    margin: 1 0 0 0;
+}
+#mpk-options Button {
+    width: 100%;
+    margin-bottom: 1;
+    border: tall $surface;
 }
 
 #art-row {
@@ -784,13 +799,27 @@ ListItem.-highlight, ListView > ListItem.-highlight {
     margin: 1 2 0 2;
     padding: 0 1;
 }
-#sls-buttons, #plug-buttons {
+#plug-buttons {
     layout: grid;
     grid-size: 2 4;
     grid-gutter: 1 1;
     grid-rows: auto;
     height: auto;
     margin: 1 2 0 2;
+}
+/* three actions, one row: install / update / uninstall. this used to be a wrapping grid with five
+   buttons - the "which product" picks live in the dialogs now, so nothing is left to wrap */
+#sls-buttons {
+    layout: grid;
+    grid-size: 3 1;
+    grid-gutter: 0 2;
+    grid-rows: auto;
+    height: auto;
+    margin: 1 2 0 2;
+}
+#sls-buttons Button {
+    width: 100%;
+    min-width: 14;
 }
 #sls-buttons Button, #plug-buttons Button {
     width: 100%;
@@ -975,10 +1004,10 @@ MenuItem {
     border-top: solid ansi_default !important;
     border-bottom: solid ansi_default !important;
 }
-.-minimal ModalInput, .-minimal Confirm, .-minimal ModalInfo, .-minimal ModalPaste, .-minimal DropScreen {
+.-minimal ModalInput, .-minimal Confirm, .-minimal ModalInfo, .-minimal ModalPaste, .-minimal ModalPick, .-minimal DropScreen {
     background: ansi_default;
 }
-.-minimal #modal-input, .-minimal #modal-confirm, .-minimal #modal-info, .-minimal #modal-paste, .-minimal #drop-card {
+.-minimal #modal-input, .-minimal #modal-confirm, .-minimal #modal-info, .-minimal #modal-paste, .-minimal #modal-pick, .-minimal #drop-card {
     background: ansi_default;
     border: solid ansi_default;
 }

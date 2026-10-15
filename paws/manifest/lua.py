@@ -4,7 +4,16 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-LUACMD = re.compile(r"^(\w+)\s*\(", re.MULTILINE)
+LUACMD = re.compile(r"(?m)(?:^|[^\w.])([A-Za-z_]\w*)\s*\(")
+KNOWN_COMMANDS = (
+    "addappid",
+    "addtoken",
+    "setmanifestid",
+    "addapptoken",
+    "setdepotkey",
+    "adddlc",
+    "adddlcname",
+)
 
 
 @dataclass
@@ -19,9 +28,9 @@ class LuaManifest:
     def parse(self):
         text = self.file.read_text(errors="replace")
         for m in LUACMD.finditer(text):
-            command, args_str, comment = parse_call(text, m.start())
+            command, args_str, comment = parse_call(text, m.start(1))
             command = command.lower()
-            if command not in ("addappid", "addtoken", "setmanifestid", "addapptoken", "setdepotkey"):
+            if command not in KNOWN_COMMANDS:
                 continue
             args = [a.strip().strip('"').strip("'") for a in split_args(args_str)]
             if command == "setdepotkey":
@@ -53,6 +62,13 @@ class LuaManifest:
                         self.manifest_ids.append((int(args[0]), int(args[1]), comment))
                     except ValueError:
                         pass
+            elif command in ("adddlc", "adddlcname"):
+                # addDLC(<parent appid>, <dlc appid>, "<name>") - this is what puts a real name
+                # on a dlc entry instead of leaving DlcData full of bare ids
+                ids = [a for a in args if re.fullmatch(r"\d+", a)]
+                if len(ids) >= 2:
+                    name = next((a for a in args if not re.fullmatch(r"\d+", a)), "")
+                    self.dlc_names.setdefault(int(ids[-1]), name or comment)
 
 
 def parse_call(text: str, start: int) -> tuple[str, str, str]:

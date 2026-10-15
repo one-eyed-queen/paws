@@ -1,14 +1,13 @@
 from __future__ import annotations
 
+from . import headcrab, plugins
 from .activation import DEFAULT_TIMEOUT, activate, ensure_subscribed
 from .api import API_PATH, write_api_command
 from .archive import extract_archive
 from .desktop import write_launcher
 from .errors import SlsError
-from . import headcrab
 from .find import SYSTEM_APPS_DIR, SYSTEM_LIB_DIRS, find_sls
-from . import plugins
-from .install import merge_user_config, install_release
+from .install import install_port, install_release, merge_user_config, update_port
 from .model import SlsInstall
 from .release import (
     FORGEJO_API,
@@ -33,50 +32,64 @@ from .tickets import (
 from .uninstall import paws_owns, uninstall
 from .version import (
     _LATEST_CACHE,
+    ABSENT,
+    NO,
+    UNKNOWN,
+    YES,
     fetch_latest_github_tag,
     installed_tag,
     installed_version,
     update_available,
+    update_reason,
+    update_state,
 )
 
 __all__ = [
-    "headcrab",
-    "plugins",
-    "DEFAULT_TIMEOUT",
-    "ensure_subscribed",
-    "activate",
+    "ABSENT",
     "API_PATH",
-    "write_api_command",
-    "extract_archive",
-    "write_launcher",
-    "SlsError",
-    "SYSTEM_LIB_DIRS",
-    "SYSTEM_APPS_DIR",
-    "find_sls",
-    "merge_user_config",
-    "install_release",
-    "SlsInstall",
-    "GITHUB_API",
+    "DEFAULT_TIMEOUT",
     "FORGEJO_API",
-    "SlsSource",
+    "GITHUB_API",
+    "NO",
+    "SYSTEM_APPS_DIR",
+    "SYSTEM_LIB_DIRS",
+    "UNKNOWN",
+    "YES",
+    "_LATEST_CACHE",
+    "SlsError",
+    "SlsInstall",
     "SlsRelease",
-    "github_releases",
-    "resolve_source",
-    "download",
+    "SlsSource",
     "Ticket",
+    "activate",
     "cache_dir",
+    "delete_ticket",
+    "download",
+    "ensure_subscribed",
+    "extract_archive",
+    "fetch_latest_github_tag",
+    "find_sls",
+    "github_releases",
+    "headcrab",
+    "install_port",
+    "install_release",
+    "installed_tag",
+    "installed_version",
     "list_tickets",
     "load_ticket_file",
-    "validate_payload",
-    "save_ticket",
     "make_ticket_file",
-    "delete_ticket",
-    "to_clipboard_text",
+    "merge_user_config",
     "paws_owns",
+    "plugins",
+    "resolve_source",
+    "save_ticket",
+    "to_clipboard_text",
     "uninstall",
-    "installed_version",
-    "installed_tag",
     "update_available",
-    "_LATEST_CACHE",
-    "fetch_latest_github_tag",
+    "update_port",
+    "update_reason",
+    "update_state",
+    "validate_payload",
+    "write_api_command",
+    "write_launcher",
 ]
