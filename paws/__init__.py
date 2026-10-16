@@ -1,2 +1,2 @@
-__version__ = "1.4.127"
+from ._version import __version__  # noqa: F401
 __all__ = ["__version__"]
