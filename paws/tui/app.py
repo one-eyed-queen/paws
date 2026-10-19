@@ -308,7 +308,7 @@ class PawsApp(App):
         from .. import sls
 
         try:
-            result = sls.install_release(source)
+            result, wired = sls.install_release(source)
         except Exception as error:
             self.call_from_thread(self.tell, "couldn't install build", str(error)[:200], "error")
             return
@@ -324,7 +324,12 @@ class PawsApp(App):
                 "error",
             )
             return
-        self.call_from_thread(self.tell, "SLSsteam installed", f"{Path(so).name} in place - restart steam to load it")
+        wired_names = ", ".join(Path(p).name for p in wired)
+        others = sls.other_installs(keep=result.lib_dir)
+        body = f"{Path(so).name} in place - steam will inject {wired_names or 'nothing'}"
+        if others:
+            body += "\n\nalso installed: " + "\n".join(others)
+        self.call_from_thread(self.tell, "SLSsteam installed", body)
 
     def _fit_to_height(self, rows):
         self.set_class(rows < 30, "-short")

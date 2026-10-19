@@ -38,9 +38,17 @@ def installed_version(sls: SlsInstall | None) -> str | None:
     if info.exists():
         try:
             data = json.loads(info.read_text())
-            return data.get("tag") or data.get("source_desc")
         except Exception:
-            pass
+            data = {}
+        # build_tag is the release this was installed from and is the only thing comparable to
+        # github's tags. "tag" holds the asset filename (SLSsteam-Any-release.7z), which has no
+        # digits to compare, so installs done by paws used to report "can't tell, private build?"
+        # against the very release they came from.
+        for key in ("build_tag", "tag"):
+            value = str(data.get(key) or "")
+            if _TAG_RE.fullmatch(value):
+                return value
+        return data.get("tag") or data.get("source_desc")
     if sls.installed_ts:
         return f"installed {datetime.fromtimestamp(sls.installed_ts).date().isoformat()}"
     return "unknown"

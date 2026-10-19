@@ -44,8 +44,8 @@ def _fill_from_dir(sls, d):
     sls.tools = d / "tools" if fs.exists(d / "tools") else None
 
 
-def _fill_from_package(sls):
-    for d in SYSTEM_LIB_DIRS:
+def _fill_from_package(sls, only: Path | None = None):
+    for d in [only] if only is not None else SYSTEM_LIB_DIRS:
         so = d / "libSLSsteam.so"
         if not fs.exists(so):
             continue
@@ -75,6 +75,50 @@ def _desktop_injects_sls(sls):
     return False
 
 
+def find_all(config: Path | None = None) -> list[SlsInstall]:
+    """every SLSsteam install on the machine, not just the one that wins.
+
+    find_sls() has to answer "which one is active", so it picks. but a machine can easily have
+    three at once - a pacman copy in /usr/lib32, one paws put in ~/.local/share, and a leftover from
+    an older one - and picking silently is how "update says up to date" and "uninstall didn't
+    uninstall" happen: paws manages one copy while a different one is the one actually loaded.
+    """
+    found: list[SlsInstall] = []
+    for d in _install_dirs():
+        if lib_in(d) is None:
+            continue
+        one = SlsInstall()
+        _fill_from_dir(one, d)
+        found.append(one)
+    for d in SYSTEM_LIB_DIRS:
+        if not fs.exists(d / "libSLSsteam.so"):
+            continue
+        one = SlsInstall()
+        _fill_from_package(one, d)
+        found.append(one)
+    for one in found:
+        if config is not None and one.config is None:
+            one.config = config
+        if one.config is None:
+            for cd in config_dirs():
+                if fs.exists(cd / "config.yaml"):
+                    one.config = cd / "config.yaml"
+                    break
+        if one.config is not None:
+            one.cache = one.config.parent / "cache"
+            one.plugins = one.config.parent / "plugins"
+    return found
+
+
+def _install_dirs() -> list[Path]:
+    return [
+        HOME / ".local/share/SLSsteam",
+        Path("/var/lib/flatpak/app/com.valvesoftware.Steam/data/.local/share/SLSsteam"),
+        HOME / ".var/app/com.valvesoftware.Steam/.local/share/SLSsteam",
+        HOME / "SLSsteam",
+    ]
+
+
 def find_sls(config: Path | None = None) -> SlsInstall | None:
     if IS_WINDOWS:
         from ..windows import port
@@ -82,12 +126,7 @@ def find_sls(config: Path | None = None) -> SlsInstall | None:
         return port.find(config)
     sls = SlsInstall()
 
-    candidates = [
-        HOME / ".local/share/SLSsteam",
-        Path("/var/lib/flatpak/app/com.valvesoftware.Steam/data/.local/share/SLSsteam"),
-        HOME / ".var/app/com.valvesoftware.Steam/.local/share/SLSsteam",
-        HOME / "SLSsteam",
-    ]
+    candidates = _install_dirs()
     fallback = None
     for d in candidates:
         if not fs.exists(d):

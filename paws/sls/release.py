@@ -122,7 +122,14 @@ def github_releases(limit: int = 30, timeout: float = 20) -> list[SlsRelease]:
     return out
 
 
-def resolve_source(source: SlsSource) -> tuple[str, str]:
+def resolve_source(source: SlsSource) -> tuple[str, str, str | None]:
+    """-> (url, asset name, release tag).
+
+    the tag comes back because it is the only comparable build id - the asset name has no digits in
+    it, so an install done by paws could never be checked against github's newest tag and always
+    read as "somewhere else, can't tell". returning it here means the caller records the tag of the
+    release it actually downloaded, with no second api call.
+    """
     if source.kind == "github":
         rels = {r.tag: r for r in github_releases(limit=60)}
         if source.tag:
@@ -130,7 +137,7 @@ def resolve_source(source: SlsSource) -> tuple[str, str]:
             if not rel:
                 raise SlsError(f"release tag {source.tag} not found")
         else:
-            rel = rels.get(sorted(rels.keys())[-1])
+            rel = rels.get(max(rels.keys()))
             if not rel:
                 raise SlsError("no releases found on GitHub")
         asset = (
@@ -143,18 +150,18 @@ def resolve_source(source: SlsSource) -> tuple[str, str]:
                 f"no {source.variant}/{source.flavour} asset in release {rel.tag} "
                 f"(it has: {', '.join(a['name'] for a in rel.assets) or 'nothing'})"
             )
-        return asset["url"], asset["name"]
+        return asset["url"], asset["name"], rel.tag
     if source.kind == "forgejo":
         with urllib.request.urlopen(FORGEJO_API, timeout=20) as r:
             rel = json.loads(r.read().decode())
         for a in rel.get("assets", []):
             if a["name"].lower().endswith(".7z"):
-                return a["browser_download_url"], rel.get("tag_name", "forgejo-latest")
+                return a["browser_download_url"], rel.get("tag_name", "forgejo-latest"), rel.get("tag_name")
         raise SlsError("no .7z asset in the forgejo mirror latest release")
     if source.kind in ("private", "local"):
         if not source.url:
             raise SlsError(f"{source.kind} source needs a url")
-        return source.url, source.name
+        return source.url, source.name, None
     raise SlsError(f"unknown source kind {source.kind}")
 
 

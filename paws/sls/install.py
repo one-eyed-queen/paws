@@ -107,29 +107,32 @@ def install_release(
     merge_config: bool = True,
     progress=None,
     allow_unverified: bool = False,
-) -> SlsInstall:
+) -> tuple[SlsInstall, bool]:
+    """returns (the install, whether the launcher got wired), same shape on every platform"""
     from ..windows import IS_WINDOWS
 
     if IS_WINDOWS:
-        return install_port(progress, allow_unverified)
+        return install_port(progress, allow_unverified), True
     destination = destination or HOME / ".local/share/SLSsteam"
     download_dir = HOME / ".cache/paws"
     if source.kind == "private":
         if not source.url:
             raise SlsError("a private build needs a repo link or a .zip/.7z file")
         archive, name, downloaded = private.fetch(source.url, download_dir, progress)
+        build_tag = source.tag
     elif source.kind == "local":
         archive = Path(source.url or "").expanduser()
         if not archive.is_file():
             raise SlsError(f"local file not found: {archive}")
         name, downloaded = source.name, False
+        build_tag = None
     else:
-        url, name = resolve_source(source)
+        url, name, build_tag = resolve_source(source)
         archive = download(url, download_dir, progress)
         downloaded = True
     staging = download_dir / f"paws-stage-{int(time.time())}"
     try:
-        return _install_staged(source, name, archive, staging, destination, write_desktop, merge_config)
+        return _install_staged(source, name, build_tag, archive, staging, destination, write_desktop, merge_config)
     finally:
         shutil.rmtree(staging, ignore_errors=True)
         if downloaded:
@@ -174,6 +177,7 @@ def _find_libs(root: Path) -> tuple[list[Path], Path]:
 def _install_staged(
     source,
     name,
+    build_tag,
     archive,
     staging,
     destination,
@@ -185,8 +189,37 @@ def _install_staged(
     libs, layout = _find_libs(inner)
     if not libs:
         raise SlsError(f"{archive.name} has no built library in it (a bin/ folder or .so files): source code won't do")
-    destination.mkdir(parents=True, exist_ok=True)
+
+    # upstream's .7z currently ships a 0-byte bin/library-inject.so. copying it and then naming it
+    # in LD_AUDIT earns "cannot be preloaded: ignored" on every single steam launch and injects
+    # nothing, so empty files never make it onto disk. an empty *main* library means the download
+    # was truncated, which has to be a hard error rather than a "successful" install.
+    main_names = {n.lower() for n in LIB_NAMES}
+    usable: list[Path] = []
+    empty: list[Path] = []
     for lib in libs:
+        try:
+            (empty if lib.stat().st_size == 0 else usable).append(lib)
+        except OSError:
+            empty.append(lib)
+    if not usable:
+        raise SlsError(
+            f"{archive.name} contains only empty libraries ({', '.join(p.name for p in empty)}) - download was truncated, try again"
+        )
+    if not any(p.name.lower() in main_names for p in usable):
+        raise SlsError(f"{archive.name} has helpers but no SLSsteam library ({', '.join(p.name for p in usable)})")
+
+    destination.mkdir(parents=True, exist_ok=True)
+    # drop libraries left over from a previous install before writing the new ones. installing the
+    # arch build over the portable one renamed both files, and the stale copies stayed on disk
+    # pointing at nothing - or, worse, a 0-byte library-inject.so from an older release kept its
+    # name and sat in the launcher's LD_AUDIT forever.
+    keep = {p.name for p in usable}
+    for stale_name in LIB_NAMES + INJECT_NAMES:
+        stale = destination / stale_name
+        if stale.name not in keep and stale.is_file():
+            stale.unlink(missing_ok=True)
+    for lib in usable:
         shutil.copy2(lib, destination / lib.name)
     # the portable .7z keeps its helpers in tools/ and its template in res/. the arch package puts
     # the grabbers in usr/bin and ships no res/ at all, so both are looked for rather than assumed
@@ -212,12 +245,12 @@ def _install_staged(
         "source_kind": source.kind,
         "source_desc": source.describe(),
         "tag": name if source.kind in ("github", "forgejo", "private") else None,
+        "build_tag": build_tag,
         "sha256": file_sha256(archive),
         "files": [f.name for f in destination.iterdir() if f.is_file()],
+        "skipped_empty": [p.name for p in empty],
     }
     (destination / "paws.info.json").write_text(json.dumps(info, indent=2))
 
-    if write_desktop:
-        write_launcher(destination)
-
-    return find_sls()
+    wired = write_launcher(destination) if write_desktop else []
+    return find_sls(), wired

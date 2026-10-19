@@ -162,3 +162,28 @@ def update_hint(pkg: str, manager: str | None) -> str:
 def remove_hint(pkg: str, manager: str | None) -> str:
     template = REMOVE.get(manager or "")
     return template.format(pkg=pkg) if template else "your package manager"
+
+
+def remove_package(pkg: str, manager: str | None) -> tuple[bool, str]:
+    """actually run the package manager's remove, for `paws sls uninstall --purge`.
+
+    these commands all need root, so they are not run behind the user's back anywhere else - only
+    when they asked for a full uninstall, and the exact command is returned either way so it can be
+    shown if it failed or if they would rather paste it themselves.
+    """
+    command = remove_hint(pkg, manager)
+    parts = command.split()
+    if not parts or not parts[0]:
+        return False, f"no known remove command for {manager}"
+    if parts[0] == "sudo":
+        # -n so a missing password fails straight away and the exact command is handed back,
+        # instead of the terminal hanging on a prompt nobody can see
+        parts.insert(1, "-n")
+    try:
+        r = subprocess.run(parts, capture_output=True, text=True, timeout=300)
+    except (OSError, subprocess.SubprocessError) as error:
+        return False, f"{command} could not run ({error})"
+    if r.returncode != 0:
+        detail = (r.stderr or r.stdout or "").strip().splitlines()
+        return False, f"{command} failed: {detail[-1] if detail else f'exit {r.returncode}'}"
+    return True, f"removed {pkg} with {command}"

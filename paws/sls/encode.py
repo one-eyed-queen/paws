@@ -97,7 +97,7 @@ def _decode(data, passphrase):
     if not raw.startswith(_HEADER):
         raise ValueError("not a paws backup string")
     try:
-        body = json.loads(raw[5:].decode())
+        body = json.loads(raw[len(_HEADER) :].decode())
     except (UnicodeDecodeError, json.JSONDecodeError) as e:
         raise ValueError(f"can't read that ticket string: {e}") from None
 
@@ -153,4 +153,4 @@ def detail_text(appid: str, width: int = 72) -> str:
     return "\n".join(lines).rstrip()
 
 
-__all__ = ["pack_tickets", "unpack", "restore", "detail_text", "_decode", "_encode"]
+__all__ = ["_decode", "_encode", "detail_text", "pack_tickets", "restore", "unpack"]

@@ -17,8 +17,15 @@ def _dlc_parent(lines, index, end, appid):
 
 def add_dlc_data(appid: str, dlc: str, name: str = "", backup: bool = True) -> tuple[bool, str]:
     path = ensure_config()
-    bak = backup_file(path) if backup else None
     appid, dlc = str(appid), str(dlc)
+    # these become yaml keys. a list or a name slipping in here used to be str()'d into the file
+    # as "[1234, 5678]:" which is not valid yaml and silently broke the whole config
+    for label, value in (("appid", appid), ("dlc", dlc)):
+        if not re.fullmatch(r"\d+", value):
+            raise ValueError(f"{label} must be a steam appid (digits only), got {value!r}")
+    if "\n" in name or "\r" in name:
+        name = name.replace("\r", " ").replace("\n", " ")
+    bak = backup_file(path) if backup else None
     lines = raw_lines(path)
     line = f'    {dlc}: "{name}"'
     index = section_index(lines, "DlcData")
@@ -28,6 +35,14 @@ def add_dlc_data(appid: str, dlc: str, name: str = "", backup: bool = True) -> t
         lines += ["DlcData:", f"  {appid}:", line]
     else:
         end = block_end_line(lines, index)
+        # upstream documents DlcData as a mapping (AppId -> DlcId: "name"). if the block is
+        # holding a list instead, inserting the mapping under the same key produces a document
+        # that is not valid yaml at all, so say so rather than writing it
+        if any(l.strip().startswith("- ") or l.strip() == "-" for l in lines[index + 1 : end]):
+            raise ValueError(
+                f"{path.name} has DlcData written as a list, but SLSsteam expects a mapping "
+                '(AppId: then DlcId: "name"). fix that block by hand before adding DLC'
+            )
         parent = _dlc_parent(lines, index, end, appid)
         if parent is None:
             position = end

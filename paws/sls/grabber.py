@@ -174,8 +174,23 @@ def _steam_id(lib, user) -> str:
 
 def _write_cache(appid: str, steam_id: str, payload: str, cache_dir: str | None):
     """drop the ticket where SLSsteam looks for it. same shape as Ticket::saveTicketToCache:
-    steamId + base64 payload under encryptedTicket, in <config>/cache/encryptedTicket_<appid>.yaml"""
+    steamId + base64 payload under encryptedTicket, in <config>/cache/encryptedTicket_<appid>.yaml
+
+    everything is checked before it is written. the appid goes into a filename and the payload is
+    handed to SLSsteam to use, so a garbled value written here would either escape the cache
+    directory or leave a broken ticket that SLSsteam then injects. nothing is better than a
+    half-written ticket, so a bad value means nothing is written at all.
+    """
     if not cache_dir:
+        return None
+    appid, steam_id, payload = str(appid).strip(), str(steam_id).strip(), str(payload).strip()
+    if not appid.isdigit():
+        return None
+    if not steam_id.isdigit():
+        return None
+    from .tickets import validate_payload
+
+    if not validate_payload(payload):
         return None
     try:
         d = Path(cache_dir)

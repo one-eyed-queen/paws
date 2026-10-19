@@ -31,7 +31,7 @@ def _repo_url(link):
     scp = re.match(r"^git@([^:]+):(.+)$", link)
     if scp:
         link = f"https://{scp.group(1)}/{scp.group(2)}"
-    return link[:-4] if link.endswith(".git") else link
+    return link.removesuffix(".git")
 
 
 def _split_repo(link):

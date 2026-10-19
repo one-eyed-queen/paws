@@ -315,15 +315,31 @@ class SlsScreen(Screen):
 
     def _do_uninstall(self, yes):
         if yes:
-            self.app.run_job("uninstalling", lambda progress: sls_module.uninstall(find_sls()), self._uninstalled)
+            self.app.run_job(
+                "uninstalling", lambda progress: sls_module.uninstall(find_sls(), purge=False), self._uninstalled
+            )
 
     def _uninstalled(self, result):
         if isinstance(result, Exception):
             self.app.tell("SLSsteam", str(result), "error")
             self._say(f"[red]failed:[/red] {result}")
             return
-        self.app.tell("SLSsteam removed")
-        self._say("uninstalled")
+        # removing paws' copy is not the same as removing SLSsteam - a pacman copy and its own
+        # launcher can still be sitting there, and "uninstalled" on its own reads as a failure when
+        # the user opens the launcher again and steam is still being injected
+        report = result if isinstance(result, dict) else {"removed": [], "kept": []}
+        removed, kept = report.get("removed", []), report.get("kept", [])
+        body = "removed:\n" + "\n".join(removed) if removed else "nothing was removed"
+        if report.get("config_backup"):
+            body += f"\nconfig kept at {report['config_backup']}"
+        body += "\nsteam itself was not touched."
+        self.app.tell("SLSsteam removed" if not kept else "SLSsteam partly removed", body)
+        said = "[green]" + ("\n".join(removed) if removed else "nothing was removed") + "[/green]"
+        if report.get("config_backup"):
+            said += f"\nconfig kept at {report['config_backup']}"
+        if kept:
+            said += "\n[yellow]left alone (they need root):[/yellow]\n" + "\n".join(kept)
+        self._say(said)
 
     def _run(self, action, label="installing"):
         self.set_out("")
@@ -337,7 +353,9 @@ class SlsScreen(Screen):
         # don't claim success on the strength of "it didn't throw" - an install that wrote no
         # library (a source archive, an empty zip) used to report a cheerful "installed" and
         # change nothing at all
-        so = getattr(result, "sls_so", None) if result else None
+        # install_release hands back (install, libraries wired into the launcher)
+        found, wired = result if isinstance(result, tuple) else (result, [])
+        so = getattr(found, "sls_so", None) if found else None
         if not so or not Path(so).exists():
             self.app.tell(
                 "SLSsteam not installed", "nothing was written - that archive has no built library in it", "error"
@@ -346,8 +364,16 @@ class SlsScreen(Screen):
                 "[red]nothing was written. that file has no built library in it - it may be source code, not a release.[/red]"
             )
             return
-        self.app.tell("SLSsteam installed", f"{Path(so).name} is in place - restart steam to load it")
-        self._say(f"done -> so={so}. restart steam for it to take effect.")
+        names = ", ".join(Path(p).name for p in wired) or "nothing (no usable library to inject)"
+        others = sls_module.other_installs(keep=found.lib_dir)
+        body = f"{Path(so).name} is in place - steam will inject {names}"
+        if others:
+            body += "\n\nalso installed: " + "\n".join(others)
+        self.app.tell("SLSsteam installed", body)
+        said = f"done -> so={so}, injecting {names}. restart steam for it to take effect."
+        if others:
+            said += "\n[yellow]also installed:[/yellow] " + "\n".join(others)
+        self._say(said)
 
     def _say(self, text):
         # the screen may be gone by the time a job ends: the job doesn't care, only the message would

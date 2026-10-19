@@ -74,15 +74,30 @@ def list_backups() -> list[Path]:
     return sorted(BACKUP_ROOT.iterdir(), reverse=True)
 
 
-def restore(path: Path) -> bool:
+def restore(path) -> bool:
+    """go back one change: put the file back the way it was before the last edit.
+
+    takes str or Path on purpose: backup_file() hands back a str, so restore(backup_file(p))
+    is a natural thing to write and used to die on path.name.
+
+    it used to copy versions[-1], which is the newest - and the first thing this does is back up
+    the current content, so that newest entry *is* what is already on disk. undo therefore
+    restored the file to exactly what it already was and did nothing at all. the target is the
+    newest version other than the one just taken, which is the one before the last change.
+    """
+    path = Path(path)
     if not BACKUP_ROOT.exists():
         return False
-    files = _versions(path.name)
-    if not files:
+    if not _versions(path.name):
         return False
     if path.exists():
         backup_file(path)
-    shutil.copy2(files[-1], path)
+    files = _versions(path.name)
+    if len(files) < 2:
+        # only the copy of what is already there: nothing to step back to, and overwriting the
+        # file with its own content would just burn the last version
+        return False
+    shutil.copy2(files[-2], path)
     return True
 
 
@@ -92,7 +107,17 @@ def versions_of(name: str) -> list[Path]:
     return list(reversed(_versions(name)))
 
 
-def restore_backup(backup_path: Path, target: Path) -> bool:
+def restore_backup(backup_path, target) -> bool:
+    """copy a specific backup over a file.
+
+    accepts a bare backup name as well as a full path, because backup_file() returns just the
+    name and `restore_backup(backup_file(p), p)` is the obvious thing to write - it silently did
+    nothing before, since the bare name is not a path to anything on disk.
+    """
+    backup_path = Path(backup_path)
+    target = Path(target)
+    if not backup_path.exists() and (BACKUP_ROOT / backup_path.name).is_file():
+        backup_path = BACKUP_ROOT / backup_path.name
     if not backup_path.is_file():
         return False
     if target.exists():

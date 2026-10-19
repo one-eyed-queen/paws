@@ -4,7 +4,6 @@ import json
 from pathlib import Path
 
 from ... import sls as sls_module
-from ...util import pkgmgr
 
 NAME = "sls"
 
@@ -23,6 +22,11 @@ def add_parser(subparsers, common):
     p.add_argument("--url", help="repo link (GitHub/Forgejo/GitLab/git) or .zip/.7z path for a private source")
     p.add_argument("--name", default="SLSsteam", help="what a private build is called (SLSsteam, HeadCrab)")
     p.add_argument("--no-desktop", action="store_true")
+    p.add_argument(
+        "--purge",
+        action="store_true",
+        help="uninstall only: also remove a package-managed copy (needs sudo) and set the config aside",
+    )
     p.add_argument(
         "--allow-unverified",
         action="store_true",
@@ -56,22 +60,34 @@ def _latest(args):
 
 def _uninstall(args):
     sls = sls_module.find_sls()
-    if sls and sls.managed_by:
-        # paws refuses to delete files a package manager owns. don't report that as a plain
-        # failure either - it's a "run this yourself" case, and saying so is the whole point
-        hint = pkgmgr.remove_hint("slssteam", sls.managed_by)
-        _say(
-            args,
-            {"ok": False, "removed": False, "managed_by": sls.managed_by, "command": hint},
-            f"nothing was removed: SLSsteam here belongs to {sls.managed_by} ({sls.lib_dir}).\n"
-            f"paws never edits files a package manager owns - run this yourself:\n  {hint}",
-        )
+    report = sls_module.uninstall(sls, purge=getattr(args, "purge", False))
+    removed = report.get("removed", [])
+    kept = report.get("kept", [])
+    failed = report.get("failed", [])
+    if not removed and not failed:
+        _say(args, {"ok": False, "removed": False, "kept": kept}, "nothing was removed")
         return 1
-    if not sls_module.uninstall(sls):
-        _say(args, {"ok": False, "removed": False, "error": "nothing to uninstall"}, "nothing to uninstall")
-        return 1
-    _say(args, {"ok": True, "removed": True, "action": "uninstall"}, "uninstalled, config and tickets left alone")
-    return 0
+    lines = (["removed SLSsteam:"] + [f"  {r}" for r in removed]) if removed else ["nothing was removed"]
+    if report.get("config_backup"):
+        lines.append(f"  config kept at {report['config_backup']} (moved aside, not deleted)")
+    lines.append("steam itself was not touched.")
+    if kept:
+        lines += ["", "left alone (they need root):"] + [f"  {k}" for k in kept]
+    if failed:
+        lines += ["", "could not finish:"] + [f"  {f}" for f in failed]
+    _say(
+        args,
+        {
+            "ok": not failed,  # a copy left for root (pacman) isn't a failed uninstall, it's reported in "kept"
+            "removed": bool(removed),
+            "items": removed,
+            "kept": kept,
+            "failed": failed,
+            "config_backup": report.get("config_backup"),
+        },
+        "\n".join(lines),
+    )
+    return 0 if not failed else 1
 
 
 def run(args) -> int:
@@ -108,7 +124,7 @@ def run(args) -> int:
             variant=args.variant,
             flavour=args.flavour,
         )
-        result = sls_module.install_release(
+        result, wired = sls_module.install_release(
             source, write_desktop=not args.no_desktop, allow_unverified=args.allow_unverified
         )
     except (sls_module.SlsError, OSError) as error:
@@ -125,17 +141,33 @@ def run(args) -> int:
         )
         return 1
     after_version = sls_module.installed_version(sls_module.find_sls())
-    _say(
-        args,
-        {
-            "ok": True,
-            "action": args.action,
-            "changed": after_version != before_version,
-            "so": str(so),
-            "version": after_version,
-        },
+    # a launcher pointing at files that aren't there is the failure that reads as "install did
+    # something". say so instead of reporting a cheerful ok.
+    broken = [str(p) for p in wired if not Path(p).is_file()]
+    if not args.no_desktop and not wired:
+        broken = ["no usable library to inject (steam will start without SLSsteam)"]
+    left = sls_module.other_installs(keep=result.lib_dir if result else None)
+    payload = {
+        "ok": not broken,
+        "action": args.action,
+        "changed": after_version != before_version,
+        "so": str(so),
+        "version": after_version,
+        "wired": [str(p) for p in wired],
+        "other_installs": left,
+    }
+    if broken:
+        payload["error"] = "; ".join(broken)
+    lines = [
         f"{args.action}: {before_version} -> {after_version}"
         if after_version != before_version
-        else f"{args.action}: {after_version}",
-    )
-    return 0
+        else f"{args.action}: {after_version}"
+    ]
+    if wired:
+        lines.append("injected: " + ":".join(str(p) for p in wired))
+    if broken:
+        lines += ["PROBLEM: " + b for b in broken]
+    if left:
+        lines += ["also installed: " + line for line in left]
+    _say(args, payload, "\n".join(lines))
+    return 0 if not broken else 1

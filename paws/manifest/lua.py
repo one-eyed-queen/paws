@@ -71,11 +71,42 @@ class LuaManifest:
                     self.dlc_names.setdefault(int(ids[-1]), name or comment)
 
 
+def _matching_paren(text: str, open_i: int) -> int:
+    """the ')' that closes the '(' at open_i, ignoring any inside a quoted string.
+
+    a plain find(")") cut the arguments short on any name containing brackets - "Strange Companion
+    (Chapters)" lost its last two characters and the rest of the line with it.
+    """
+    depth = 0
+    quote = ""
+    i = open_i
+    while i < len(text):
+        ch = text[i]
+        if quote:
+            if ch == "\\" and i + 1 < len(text):
+                i += 2
+                continue
+            if ch == quote:
+                quote = ""
+        elif ch in "\"'":
+            quote = ch
+        elif ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+            if depth == 0:
+                return i
+        i += 1
+    return -1
+
+
 def parse_call(text: str, start: int) -> tuple[str, str, str]:
     open_i = text.find("(", start)
-    close_i = text.find(")", open_i)
+    if open_i == -1:
+        return text[start:].split("(")[0].strip(), "", ""
+    close_i = _matching_paren(text, open_i)
     if close_i == -1:
-        return text[start:].split("(")[0], "", ""
+        return text[start:].split("(")[0].strip(), "", ""
     args = text[open_i + 1 : close_i]
     rest = text[close_i + 1 : close_i + 300]
     comment = ""
@@ -87,4 +118,34 @@ def parse_call(text: str, start: int) -> tuple[str, str, str]:
 
 
 def split_args(s: str) -> list[str]:
-    return s.split(",")
+    """split on commas that are not inside a quoted string.
+
+    this was s.split(","), which cut every name containing a comma in half: a DLC called
+    "Soundtrack, Deluxe Edition" arrived as "Soundtrack". real store names have commas and colons
+    and brackets in them all the time, so the split has to know about quoting.
+    """
+    parts: list[str] = []
+    buf: list[str] = []
+    quote = ""
+    i = 0
+    while i < len(s):
+        ch = s[i]
+        if quote:
+            buf.append(ch)
+            if ch == "\\" and i + 1 < len(s):
+                buf.append(s[i + 1])
+                i += 2
+                continue
+            if ch == quote:
+                quote = ""
+        elif ch in "\"'":
+            quote = ch
+            buf.append(ch)
+        elif ch == ",":
+            parts.append("".join(buf))
+            buf = []
+        else:
+            buf.append(ch)
+        i += 1
+    parts.append("".join(buf))
+    return [p for p in parts if p.strip()] if not any(parts) else parts

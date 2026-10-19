@@ -4,9 +4,9 @@ from . import headcrab, plugins
 from .activation import DEFAULT_TIMEOUT, activate, ensure_subscribed
 from .api import API_PATH, write_api_command
 from .archive import extract_archive
-from .desktop import write_launcher
+from .desktop import audit_targets, launcher_targets, write_launcher
 from .errors import SlsError
-from .find import SYSTEM_APPS_DIR, SYSTEM_LIB_DIRS, find_sls
+from .find import SYSTEM_APPS_DIR, SYSTEM_LIB_DIRS, find_all, find_sls
 from .install import install_port, install_release, merge_user_config, update_port
 from .model import SlsInstall
 from .release import (
@@ -29,7 +29,7 @@ from .tickets import (
     to_clipboard_text,
     validate_payload,
 )
-from .uninstall import paws_owns, uninstall
+from .uninstall import leftovers, other_installs, paws_owns, uninstall
 from .version import (
     _LATEST_CACHE,
     ABSENT,
@@ -62,12 +62,14 @@ __all__ = [
     "SlsSource",
     "Ticket",
     "activate",
+    "audit_targets",
     "cache_dir",
     "delete_ticket",
     "download",
     "ensure_subscribed",
     "extract_archive",
     "fetch_latest_github_tag",
+    "find_all",
     "find_sls",
     "github_releases",
     "headcrab",
@@ -75,10 +77,13 @@ __all__ = [
     "install_release",
     "installed_tag",
     "installed_version",
+    "launcher_targets",
+    "leftovers",
     "list_tickets",
     "load_ticket_file",
     "make_ticket_file",
     "merge_user_config",
+    "other_installs",
     "paws_owns",
     "plugins",
     "resolve_source",
