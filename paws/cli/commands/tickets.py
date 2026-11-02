@@ -42,9 +42,12 @@ def _ask_passphrase(confirm, pfile=None):
         if not pw:
             raise ValueError("passphrase file was empty")
         return pw
-    pw = getpass.getpass("passphrase for this backup: ")
+    try:
+        pw = getpass.getpass("passphrase for this backup: ")
+        again = getpass.getpass("repeat it: ") if confirm else pw
+    except EOFError:
+        raise ValueError("no terminal to ask for the passphrase, use the passphrase file option") from None
     if confirm:
-        again = getpass.getpass("repeat it: ")
         if pw != again:
             raise ValueError("passphrases don't match")
     if not pw:

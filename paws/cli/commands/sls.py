@@ -10,7 +10,7 @@ NAME = "sls"
 
 def add_parser(subparsers, common):
     p = subparsers.add_parser(NAME, help="SLSsteam install/update/uninstall", parents=[common])
-    p.add_argument("action", choices=["install", "update", "uninstall", "latest"], default="install", nargs="?")
+    p.add_argument("action", choices=["install", "update", "uninstall", "latest", "forget-root"])
     p.add_argument("--source", choices=["github", "private", "forgejo", "local"], default="github")
     p.add_argument("--tag", help="specific GitHub release tag")
     p.add_argument(
@@ -25,7 +25,7 @@ def add_parser(subparsers, common):
     p.add_argument(
         "--purge",
         action="store_true",
-        help="uninstall only: also remove a package-managed copy (needs sudo) and set the config aside",
+        help="uninstall only: also set the config aside",
     )
     p.add_argument(
         "--allow-unverified",
@@ -72,7 +72,7 @@ def _uninstall(args):
         lines.append(f"  config kept at {report['config_backup']} (moved aside, not deleted)")
     lines.append("steam itself was not touched.")
     if kept:
-        lines += ["", "left alone (they need root):"] + [f"  {k}" for k in kept]
+        lines += ["", "left alone:"] + [f"  {k}" for k in kept]
     if failed:
         lines += ["", "could not finish:"] + [f"  {f}" for f in failed]
     _say(
@@ -93,6 +93,12 @@ def _uninstall(args):
 def run(args) -> int:
     if args.action == "latest":
         return _latest(args)
+    if args.action == "forget-root":
+        from ...util import privilege
+
+        ok = privilege.forget()
+        _say(args, {"ok": ok}, "saved sudo password removed" if ok else "no saved sudo password found")
+        return 0
     before = sls_module.find_sls()
     before_version = sls_module.installed_version(before)
     try:
@@ -116,12 +122,15 @@ def run(args) -> int:
                     {"ok": True, "action": "update", "changed": None, "why": sls_module.update_reason(before, latest)},
                     f"can't compare versions, fetching the newest github build anyway ({sls_module.update_reason(before, latest)})",
                 )
+        variant = args.variant
+        if args.action == "update" and args.source == "github" and before and before.managed_by == "pacman":
+            variant = "arch"  # replace the package in place, or the old copy keeps being loaded
         source = sls_module.SlsSource(
             name=args.name if args.source == "private" else args.source,
             kind=args.source,
             url=args.url,
             tag=args.tag,
-            variant=args.variant,
+            variant=variant,
             flavour=args.flavour,
         )
         result, wired = sls_module.install_release(

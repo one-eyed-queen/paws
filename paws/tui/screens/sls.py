@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from textual import on, work
@@ -142,11 +143,12 @@ class SlsScreen(Screen):
             elif state == sls_module.NO:
                 self.set_out(f"[#9db0e0]already on the newest github build - {reason}[/]")
                 return
+            variant = "arch" if sls.managed_by == "pacman" else "any"
+            if variant == "arch":
+                self._get_root("updating the SLSsteam package")
             self._run(
                 "updating",
-                lambda progress: sls_module.install_release(
-                    sls_module.SlsSource("github", "github"), progress=progress
-                ),
+                lambda progress: sls_module.install_release(_any_source(variant), progress=progress),
             )
         elif sid == "b-uninstall-hc":
             found = sls_module.headcrab.footprint()
@@ -177,14 +179,9 @@ class SlsScreen(Screen):
                     f"works on windows anyway: {WORKS_WITHOUT_PORT}"
                 )
             elif sls and sls.managed_by:
-                # say plainly that nothing was removed, and give the exact line to paste. the
-                # old wording read like it had done the job
-                self.set_out(
-                    f"[#9db0e0]nothing was removed.[/] SLSsteam here belongs to {sls.managed_by} "
-                    f"({sls.lib_dir}), and paws never edits files a package manager owns.\n\n"
-                    f"  {pkgmgr.remove_hint('slssteam', sls.managed_by)}\n\n"
-                    f"run that, then come back - or install SLSsteam into your own home with the "
-                    f"Install button, which paws does own and can remove."
+                self.app.push_screen(
+                    Confirm(f"Remove SLSsteam ({sls.managed_by} package in {sls.lib_dir}) and its launchers?\nThis needs root.", dangerous=True),
+                    self._do_uninstall,
                 )
             elif sls:
                 self.app.push_screen(
@@ -243,6 +240,8 @@ class SlsScreen(Screen):
         if not choice:
             return
         variant, flavour = choice.split("/")
+        if variant == "arch":
+            self._get_root("installing the SLSsteam package")
         self._run(
             f"installing {variant}/{flavour}",
             lambda progress: sls_module.install_release(_any_source(variant, flavour), progress=progress),
@@ -314,10 +313,29 @@ class SlsScreen(Screen):
         self._say(f"removed {len(result)} thing(s) HeadCrab added")
 
     def _do_uninstall(self, yes):
-        if yes:
-            self.app.run_job(
-                "uninstalling", lambda progress: sls_module.uninstall(find_sls(), purge=False), self._uninstalled
-            )
+        if not yes:
+            return
+        sls = find_sls()
+        if sls and sls.lib_dir and (sls.managed_by or not os.access(sls.lib_dir, os.W_OK)):
+            self._get_root(f"removing {sls.lib_dir}")
+        self.app.run_job(
+            "uninstalling", lambda progress: sls_module.uninstall(sls, purge=False), self._uninstalled
+        )
+
+    def _get_root(self, detail):
+        """the password prompt needs the terminal, which the TUI holds, and jobs run off-thread"""
+        from ...util.privilege import ensure_root
+
+        under = getattr(self.app, "underlay", None)
+        if under is not None:
+            under.pause()
+        try:
+            with self.app.suspend():
+                ensure_root(detail)
+        finally:
+            if under is not None:
+                under.resume()
+            self.app.force_full_repaint()
 
     def _uninstalled(self, result):
         if isinstance(result, Exception):
@@ -328,7 +346,7 @@ class SlsScreen(Screen):
         # launcher can still be sitting there, and "uninstalled" on its own reads as a failure when
         # the user opens the launcher again and steam is still being injected
         report = result if isinstance(result, dict) else {"removed": [], "kept": []}
-        removed, kept = report.get("removed", []), report.get("kept", [])
+        removed, kept = report.get("removed", []), report.get("kept", []) + report.get("failed", [])
         body = "removed:\n" + "\n".join(removed) if removed else "nothing was removed"
         if report.get("config_backup"):
             body += f"\nconfig kept at {report['config_backup']}"
@@ -338,7 +356,7 @@ class SlsScreen(Screen):
         if report.get("config_backup"):
             said += f"\nconfig kept at {report['config_backup']}"
         if kept:
-            said += "\n[yellow]left alone (they need root):[/yellow]\n" + "\n".join(kept)
+            said += "\n[yellow]not removed:[/yellow]\n" + "\n".join(kept)
         self._say(said)
 
     def _run(self, label, action):

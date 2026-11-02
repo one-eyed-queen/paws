@@ -53,7 +53,8 @@ def _split_value(line: str, key: str) -> tuple[str, str] | None:
     held a quoted value it preferred to treat the tail as a comment: a key set to "a: b" and then
     to "hello" became 'hello: b"'. anything quoted has to be matched with a scan, not a regex.
     """
-    m = re.match(rf"^\s*{re.escape(key)}:[ \t]*(.*)$", line)
+    # top level only: an indented "Foo:" belongs to some other block
+    m = re.match(rf"^{re.escape(key)}:[ \t]*(.*)$", line)
     if not m:
         return None
     rest = m.group(1)
@@ -82,18 +83,19 @@ def _split_value(line: str, key: str) -> tuple[str, str] | None:
     return stripped.rstrip(), ""
 
 
-def set_scalar(key: str, value: str, backup: bool = True) -> bool:
+def set_scalar(key: str, value: str, backup: bool = True, rendered: bool = False) -> bool:
     path = ensure_config()
     if backup:
         backup_file(path)
     lines = raw_lines(path)
-    rendered = _render_value(value)
+    rendered = value if rendered else _render_value(value)
     for i, l in enumerate(lines):
         found = _split_value(l, key)
         if found is None:
             continue
         comment = found[1]
-        lines[i] = f"{key}: {rendered}{comment if comment.lstrip().startswith('#') else ''}"
+        kept = comment.strip()
+        lines[i] = f"{key}: {rendered} {kept}" if kept.startswith("#") else f"{key}: {rendered}"
         write(path, "\n".join(lines) + "\n")
         return True
     if not (lines and lines[-1].strip() == ""):

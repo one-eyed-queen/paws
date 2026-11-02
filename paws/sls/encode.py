@@ -75,6 +75,8 @@ def pack_tickets(appid: str, passphrase: str) -> str:
 def _decode(data, passphrase):
     if not data:
         raise ValueError("that isn't a paws ticket string (it starts with paws1e.)")
+    if data.startswith(("paw1e.", "paw1.")):
+        raise ValueError("that string came from an older build, which this one can't read - make a new backup")
     if data.startswith(MAGIC_LEGACY):
         raise ValueError("that's an old paws1 string with no passphrase protection - make a new backup instead")
     if not data.startswith(MAGIC_ENC):

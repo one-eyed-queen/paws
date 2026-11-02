@@ -89,6 +89,16 @@ REMOVE: dict[str, str] = {
 }
 
 
+# output is captured, so nobody could answer the package manager's own "are you sure"
+NO_PROMPT = {
+    "pacman": ["--noconfirm"],
+    "apt": ["-y"],
+    "dnf": ["-y"],
+    "zypper": ["-n"],
+    "xbps": ["-y"],
+}
+
+
 def available() -> list[str]:
     return [m for m in ALL if _has(m)]
 
@@ -171,19 +181,19 @@ def remove_package(pkg: str, manager: str | None) -> tuple[bool, str]:
     when they asked for a full uninstall, and the exact command is returned either way so it can be
     shown if it failed or if they would rather paste it themselves.
     """
+    from .privilege import run_privileged_quiet
+
     command = remove_hint(pkg, manager)
     parts = command.split()
     if not parts or not parts[0]:
         return False, f"no known remove command for {manager}"
-    if parts[0] == "sudo":
-        # -n so a missing password fails straight away and the exact command is handed back,
-        # instead of the terminal hanging on a prompt nobody can see
-        parts.insert(1, "-n")
-    try:
-        r = subprocess.run(parts, capture_output=True, text=True, timeout=300)
-    except (OSError, subprocess.SubprocessError) as error:
-        return False, f"{command} could not run ({error})"
-    if r.returncode != 0:
-        detail = (r.stderr or r.stdout or "").strip().splitlines()
-        return False, f"{command} failed: {detail[-1] if detail else f'exit {r.returncode}'}"
+    actual = (parts[1:] if parts[0] == "sudo" else parts) + NO_PROMPT.get(manager or "", [])
+    rc, stdout, stderr = run_privileged_quiet(
+        actual, detail=f"removing {pkg} via {manager}"
+    )
+    if rc == 130:
+        return False, f"{command} needs root and was denied"
+    if rc != 0:
+        detail = (stderr or stdout or "").strip().splitlines()
+        return False, f"{command} failed: {detail[-1] if detail else f'exit {rc}'}"
     return True, f"removed {pkg} with {command}"

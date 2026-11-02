@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from ...config.where import find_config
 from ...paths import default_config_dir
 from ...util import backup
@@ -21,6 +23,21 @@ def add_parser(subparsers, common):
 def run(args) -> int:
     files = backup.list_backups()
     if args.restore is None:
+        if args.json:
+            print(
+                json.dumps(
+                    [
+                        {
+                            "name": f.name,
+                            "size": f.stat().st_size,
+                            "age": backup.age(f),
+                            "known_good": f.name.endswith(".known-good"),
+                        }
+                        for f in files
+                    ]
+                )
+            )
+            return 0
         if not files:
             print("no backups yet, paws makes one the first time it changes a file")
             return 0

@@ -63,11 +63,19 @@ def _bulk(args, parsed):
 
 
 def run(args) -> int:
+    try:
+        return _run(args)
+    except OSError as error:
+        print(f"paws add: {error}", file=sys.stderr)
+        return 1
+
+
+def _run(args) -> int:
     if args.file:
         plan = games.plan_from_bundle(load_bundle(args.file), name=args.name)
     elif args.list:
         return _bulk(args, parse_text(read_list(args.list)))
-    elif len(args.appids) > 1:
+    elif len(args.appids) > 1 or (args.appids and not args.appids[0].isdigit()):
         return _bulk(args, parse_text("\n".join(args.appids)))
     elif args.appids:
         plan = games.plan_add(args.appids[0], name=args.name)
@@ -82,7 +90,10 @@ def run(args) -> int:
     if args.json:
         print(json.dumps({"plan": [c.__dict__ for c in plan.changes()], "result": result}))
     else:
-        print(f"applied {result['applied']} change(s), {len(result['errors'])} error(s)")
+        if result["applied"] and not result.get("added"):
+            print(f"nothing new: {plan.appid} was already there")
+        else:
+            print(f"applied {result['applied']} change(s), {len(result['errors'])} error(s)")
         for error in result["errors"]:
             print(f"  {error}")
     return 1 if result.get("free") or result["errors"] else 0

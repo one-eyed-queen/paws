@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import time
 import urllib.parse
 
 from .base import GameInfo, SourceError, get_json
@@ -54,13 +55,20 @@ def search_store(term: str, *, cc: str = "us", l: str = "en") -> list[GameInfo]:
 _FREE: dict[str, bool] = {}
 
 
+_NO_ANSWER: dict[str, float] = {}
+NO_ANSWER_TTL = 300.0
+
+
 def free_ids(appids) -> set[str]:
     """which of these the store gives away for free (free games, free dlc, free tools...). one bulk price lookup
     first: anything with a price isn't free. only the priceless ones (free, delisted, not out yet) get the full
     lookup, since delisted and unreleased apps have no price either. an answer the store can't give counts as not
     free, so an offline paws never refuses to add anything"""
     ids = [a for a in dict.fromkeys(str(x) for x in appids) if a.isdigit()]
-    todo = [a for a in ids if a not in _FREE]
+    # an id the store can't answer for must not be asked about again per game: a bulk add calls this once per row
+    now = time.monotonic()
+    todo = [a for a in ids if a not in _FREE and now - _NO_ANSWER.get(a, -NO_ANSWER_TTL) >= NO_ANSWER_TTL]
+    _NO_ANSWER.update((a, now) for a in todo)
     for start in range(0, len(todo), 100):
         chunk = todo[start : start + 100]
         try:

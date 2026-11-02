@@ -3,7 +3,7 @@ from __future__ import annotations
 from .backup import BACKUP_ROOT, MAX_BACKUPS, backup_file, list_backups, restore
 from .clipboard import copy
 from .env import ENV, Env, detect, require_tool
-from .privilege import Approver, run_privileged
+from .privilege import Approver, ensure_root, forget, run_privileged, run_privileged_quiet
 from .undo import JOURNAL, history, log
 
 __all__ = [
@@ -18,7 +18,9 @@ __all__ = [
     "require_tool",
     "ENV",
     "Approver",
+    "ensure_root",
     "run_privileged",
+    "run_privileged_quiet",
     "JOURNAL",
     "log",
     "history",

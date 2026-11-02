@@ -20,7 +20,10 @@ def windows_root() -> Path | None:
     """the folder steam.exe lives in. cheap (registry + a stat), no process listing"""
     from ..windows import registry
 
+    exe = registry.steam_exe()
     roots = [Path(p) for p in (os.environ.get("PAWS_STEAM_ROOT"), registry.steam_path()) if p]
+    if exe:
+        roots.append(Path(exe).parent)
     return next((r for r in [*roots, *WINDOWS_ROOTS] if fs.exists(r / "steam.exe")), None)
 
 
@@ -146,7 +149,11 @@ def _client_version(st):
     if not fs.exists(pkg):
         return None, "stable"
     pattern = "steam_client_*win*.manifest" if st.kind == "windows" else "steam_client_*ubuntu12.manifest"
-    for mf in sorted(pkg.glob(pattern)):
+    # win32 can be left behind stale next to win64. .installed is what's left when the manifest is gone
+    manifests = sorted(pkg.glob(pattern), key=lambda f: ("win64" not in f.name, f.name))
+    if st.kind == "windows" and not manifests:
+        manifests = sorted(pkg.glob("steam_client_*win*.installed"), key=lambda f: ("win64" not in f.name, f.name))
+    for mf in manifests:
         if "steamdeck" in mf.name:
             channel = "steamdeck"
         elif "beta" in mf.name:

@@ -142,6 +142,8 @@ def find_sls(config: Path | None = None) -> SlsInstall | None:
 
     if sls.sls_so is None:
         _fill_from_package(sls)
+    if sls.sls_so is None:
+        sls.lib_dir = None
 
     cfg_candidates = []
     if config is not None:

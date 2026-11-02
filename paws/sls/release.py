@@ -131,13 +131,14 @@ def resolve_source(source: SlsSource) -> tuple[str, str, str | None]:
     release it actually downloaded, with no second api call.
     """
     if source.kind == "github":
-        rels = {r.tag: r for r in github_releases(limit=60)}
+        all_rels = github_releases(limit=60)
         if source.tag:
+            rels = {r.tag: r for r in all_rels}
             rel = rels.get(source.tag)
             if not rel:
                 raise SlsError(f"release tag {source.tag} not found")
         else:
-            rel = rels.get(max(rels.keys()))
+            rel = all_rels[0] if all_rels else None
             if not rel:
                 raise SlsError("no releases found on GitHub")
         asset = (

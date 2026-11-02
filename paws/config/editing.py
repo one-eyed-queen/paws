@@ -133,7 +133,10 @@ def set_value(key: str, text: str):
     if problem:
         raise ValueError(problem)
     t = SECTIONS["sections"][key]["type"]
-    set_scalar(key, yaml_scalar(text.strip()) if t == "str" else text.strip())
+    if t == "str":
+        set_scalar(key, yaml_scalar(text.strip()), rendered=True)  # already quoted, don't quote it twice
+    else:
+        set_scalar(key, text.strip())
 
 
 def toggle(key: str) -> str:
@@ -146,7 +149,10 @@ def reset(key: str) -> str:
     m = mode(key)
     if m in (BOOL, VALUE):
         d = default_of(key) or ""
-        set_scalar(key, yaml_scalar(d) if SECTIONS["sections"][key]["type"] == "str" else d)
+        if SECTIONS["sections"][key]["type"] == "str":
+            set_scalar(key, yaml_scalar(d), rendered=True)
+        else:
+            set_scalar(key, d)
         return d
     raise ConfigError(f"{key} has rows: remove them one by one, or use the editor")
 

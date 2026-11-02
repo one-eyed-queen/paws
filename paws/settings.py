@@ -58,7 +58,7 @@ def is_minimal() -> bool:
 
 def _launch_cmd(value):
     v = str(value).strip() if value else ""
-    return DEFAULTS["launch_cmd"] if v in ("", "nyah", "paws") else v
+    return DEFAULTS["launch_cmd"] if v in ("", "nyah", "paw", "paws") else v
 
 
 def load() -> dict:

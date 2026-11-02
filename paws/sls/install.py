@@ -113,6 +113,7 @@ def install_release(
 
     if IS_WINDOWS:
         return install_port(progress, allow_unverified), True
+    destination_given = destination is not None
     destination = destination or HOME / ".local/share/SLSsteam"
     download_dir = HOME / ".cache/paws"
     if source.kind == "private":
@@ -130,6 +131,11 @@ def install_release(
         url, name, build_tag = resolve_source(source)
         archive = download(url, download_dir, progress)
         downloaded = True
+    if source.kind == "github" and source.variant == "arch" and destination_given is False and shutil.which("pacman"):
+        try:
+            return _install_package(archive, write_desktop, merge_config)
+        finally:
+            archive.unlink(missing_ok=True)
     staging = download_dir / f"paws-stage-{int(time.time())}"
     try:
         return _install_staged(source, name, build_tag, archive, staging, destination, write_desktop, merge_config)
@@ -137,6 +143,34 @@ def install_release(
         shutil.rmtree(staging, ignore_errors=True)
         if downloaded:
             archive.unlink(missing_ok=True)
+
+
+def _install_package(archive: Path, write_desktop: bool, merge_config: bool) -> tuple[SlsInstall, list[Path]]:
+    """the arch build is a pacman package, so pacman installs it. unpacking it into ~/.local left
+    any older pacman copy on disk, still loaded by the SLSsteam launcher the package ships."""
+    from ..util.privilege import run_privileged_quiet
+    from .desktop import audit_targets
+    from .uninstall import paws_owns, restore_launchers
+
+    code, out, err = run_privileged_quiet(
+        ["pacman", "-U", "--noconfirm", str(archive)], detail=f"installing {archive.name} with pacman"
+    )
+    if code != 0:
+        lines = (err or out or "").strip().splitlines()
+        raise SlsError(f"pacman -U {archive.name} failed: {lines[-1] if lines else f'exit {code}'}")
+    local = HOME / ".local/share/SLSsteam"
+    if local.is_dir() and paws_owns(local):
+        shutil.rmtree(local, ignore_errors=True)  # it would shadow the package in find_sls
+        restore_launchers()
+    if merge_config:
+        config_dir = default_config_dir()
+        config_dir.mkdir(parents=True, exist_ok=True)
+        merge_user_config(archive.parent, config_dir / "config.yaml")
+    found = find_sls()
+    if found is None or not found.lib_dir:
+        raise SlsError("pacman finished but paws can't see the library it installed")
+    wired = write_launcher(found.lib_dir) if write_desktop else audit_targets(found.lib_dir)
+    return found, wired
 
 
 def _find_libs(root: Path) -> tuple[list[Path], Path]:
@@ -223,12 +257,12 @@ def _install_staged(
         shutil.copy2(lib, destination / lib.name)
     # the portable .7z keeps its helpers in tools/ and its template in res/. the arch package puts
     # the grabbers in usr/bin and ships no res/ at all, so both are looked for rather than assumed
-    tools_source = next((p for p in (inner / "tools", layout / "bin") if p.is_dir()), None)
+    tools_source = next((p for p in (inner / "tools", inner / "usr" / "bin") if p.is_dir()), None)
     if tools_source is not None:
         tools_destination = destination / "tools"
         shutil.rmtree(tools_destination, ignore_errors=True)
         shutil.copytree(tools_source, tools_destination)
-    res_source = next((p for p in (inner / "res", layout / "share" / "slssteam") if p.is_dir()), None)
+    res_source = next((p for p in (inner / "res", inner / "usr" / "share" / "slssteam") if p.is_dir()), None)
     if res_source is not None:
         res_destination = destination / "res"
         shutil.rmtree(res_destination, ignore_errors=True)

@@ -131,16 +131,17 @@ def uninstall(sls: SlsInstall | None, purge: bool = False) -> dict:
         return report
 
     found = find_all()
+    seen_managers = set()
     if sls is not None and sls.lib_dir and all(one.lib_dir != sls.lib_dir for one in found):
         found.append(sls)  # the install the caller asked about, even where find_all doesn't look
     for one in found:
         if one.managed_by:
-            if not purge:
-                report["kept"].append(
-                    f"{one.managed_by} owns {one.lib_dir} - {pkgmgr.remove_hint('slssteam', one.managed_by)}"
-                )
+            # /usr/lib and /usr/lib32 can both hold the one package
+            if one.managed_by in seen_managers:
                 continue
-            ok, why = pkgmgr.remove_package("slssteam", one.managed_by)
+            seen_managers.add(one.managed_by)
+            owner = pkgmgr.owner_of(one.sls_so) if one.sls_so else None
+            ok, why = pkgmgr.remove_package(owner.package if owner else "slssteam", one.managed_by)
             # a removal that did not happen must never land in "removed" - that is how uninstall
             # ends up reporting success for work it never did
             (report["removed"] if ok else report["failed"]).append(why)
@@ -148,7 +149,15 @@ def uninstall(sls: SlsInstall | None, purge: bool = False) -> dict:
         if one.lib_dir and paws_owns(one.lib_dir):
             shutil.rmtree(one.lib_dir, ignore_errors=True)
             if one.lib_dir.exists():
-                report["failed"].append(f"{one.lib_dir} could not be fully removed")
+                from ..util.privilege import run_privileged_quiet
+                rc, _, _ = run_privileged_quiet(
+                    ["rm", "-rf", str(one.lib_dir)],
+                    detail=f"removing {one.lib_dir} (needs root)",
+                )
+                if rc == 0 and not one.lib_dir.exists():
+                    report["removed"].append(str(one.lib_dir))
+                else:
+                    report["failed"].append(f"{one.lib_dir} could not be removed (needs root)")
             else:
                 report["removed"].append(str(one.lib_dir))
         elif one.lib_dir:

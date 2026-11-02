@@ -77,7 +77,8 @@ def _looks_like_build(p: Path) -> bool:
     lowered = [name.lower().lstrip("./") for name in names]
     if any(name.endswith(BUILD_ARTIFACTS) for name in lowered):
         return True
-    return any(name.startswith(BUILD_DIRS) for name in lowered)
+    # a release is often wrapped in one top folder, which stage_inner unwraps on install
+    return any(name.startswith(BUILD_DIRS) or name.partition("/")[2].startswith(BUILD_DIRS) for name in lowered)
 
 
 def is_ticket_file(p: Path) -> bool:
@@ -279,10 +280,10 @@ def import_files(paths: list[Path]) -> DropResult:
         # a .key we couldn't pin to one depot is a warning, not a failure: everything else in
         # the drop is still fine, and the key simply doesn't get written
         for _ in bundle.unpaired_keys():
-            warnings.append("a .key didn't name its depot and nothing in the drop said which one it was for")
+            warnings.append("a .key didn't name its depot and nothing in the drop said which one it was for: drop its .lua with it")
         changes = plan.changes()
         if not changes:
-            return DropResult(False, "nothing to add", problems or ["those files didn't have anything paws can use"])
+            return DropResult(False, "nothing to add", problems or warnings or ["those files didn't have anything paws can use"])
         result = apply_plan(plan)
     except Exception as error:
         return DropResult(False, "couldn't add it", [str(error), *problems])
