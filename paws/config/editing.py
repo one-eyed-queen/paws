@@ -187,7 +187,8 @@ def add_row(key: str, text: str) -> str:
 
 
 def remove_row(key: str, row: str) -> bool:
-    removed, _bak = remove_rendered(key, row)
+    with batch():
+        removed, _bak = remove_rendered(key, row)
     return removed
 
 

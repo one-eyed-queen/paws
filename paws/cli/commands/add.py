@@ -85,4 +85,4 @@ def run(args) -> int:
         print(f"applied {result['applied']} change(s), {len(result['errors'])} error(s)")
         for error in result["errors"]:
             print(f"  {error}")
-    return 1 if result.get("free") else 0
+    return 1 if result.get("free") or result["errors"] else 0

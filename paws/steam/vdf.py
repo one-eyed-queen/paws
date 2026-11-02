@@ -136,6 +136,24 @@ def existing_depot_ids(depot_ids: list[str], path: Path | None = None) -> set[st
     return {d for d in depot_ids if re.search(rf'"{re.escape(d)}"\s*\{{', content or "")}
 
 
+def _find_block(content: str, depot_id: str) -> tuple[int, int] | None:
+    dm = re.search(rf'"{re.escape(depot_id)}"\s*\{{', content)
+    if not dm:
+        return None
+    depth = 0
+    for i in range(dm.end(), len(content)):
+        if content[i] == "{":
+            depth += 1
+        elif content[i] == "}":
+            if depth == 0:
+                start = content.rfind("\n", 0, dm.start())
+                if start == -1:
+                    start = dm.start()
+                return start, i + 1
+            depth -= 1
+    return None
+
+
 def remove_depot_keys(depot_ids: list[str], backup: bool = True, path: Path | None = None) -> dict:
     from ..util.backup import backup_file
 
@@ -146,9 +164,9 @@ def remove_depot_keys(depot_ids: list[str], backup: bool = True, path: Path | No
     content = read_vdf(p)
     removed = []
     for did in depot_ids:
-        dm = re.search(rf'\t*"{re.escape(did)}"\s*\{{.*?\n\t*\}}', content, re.DOTALL)
-        if dm:
-            content = content[: dm.start()] + content[dm.end() :]
+        span = _find_block(content, did)
+        if span:
+            content = content[: span[0]] + content[span[1] :]
             removed.append(did)
     if removed:
         _write(p, content)

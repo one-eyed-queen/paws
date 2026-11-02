@@ -8,7 +8,7 @@ NAME = "backups"
 
 
 def add_parser(subparsers, common):
-    p = subparsers.add_parser(NAME, help="list the backups paws made, or restore one (config.yaml by default)")
+    p = subparsers.add_parser(NAME, help="list the backups paws made, or restore one (config.yaml by default)", parents=[common])
     p.add_argument(
         "--restore",
         nargs="?",

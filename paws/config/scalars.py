@@ -93,7 +93,7 @@ def set_scalar(key: str, value: str, backup: bool = True) -> bool:
         if found is None:
             continue
         comment = found[1]
-        lines[i] = f"{key}: {rendered}{comment if comment.startswith('#') else ''}"
+        lines[i] = f"{key}: {rendered}{comment if comment.lstrip().startswith('#') else ''}"
         write(path, "\n".join(lines) + "\n")
         return True
     if not (lines and lines[-1].strip() == ""):

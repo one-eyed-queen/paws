@@ -80,7 +80,7 @@ def _poll(cache, appid, timeout, found=None, want="both"):
     if want not in WANTS:
         want = "both"
     found = list(found or [])
-    required = {"encrypted", "normal"} if want != "both" else {"encrypted"}
+    required = {"encrypted": {"encrypted"}, "normal": {"normal"}, "both": {"encrypted"}}[want]
     deadline = time.time() + timeout
     first = None
     while time.time() < deadline:

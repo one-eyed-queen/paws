@@ -33,6 +33,7 @@ def _extract_tar(archive: Path, destination: Path) -> bool:
     """plain tarballs are stdlib; the zstd ones need zstandard (or a zstd binary, or 7z)"""
     mode = "r:*"
     opener = None
+    fobj = None
     if archive.name.lower().endswith((".zst", ".tzst")):
         try:
             import zstandard
@@ -55,6 +56,11 @@ def _extract_tar(archive: Path, destination: Path) -> bool:
         if opener is not None and hasattr(opener, "close"):
             try:
                 opener.close()
+            except Exception:
+                pass
+        if fobj is not None and hasattr(fobj, "close"):
+            try:
+                fobj.close()
             except Exception:
                 pass
     return True

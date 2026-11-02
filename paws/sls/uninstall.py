@@ -147,7 +147,12 @@ def uninstall(sls: SlsInstall | None, purge: bool = False) -> dict:
             continue
         if one.lib_dir and paws_owns(one.lib_dir):
             shutil.rmtree(one.lib_dir, ignore_errors=True)
-            report["removed"].append(str(one.lib_dir))
+            if one.lib_dir.exists():
+                report["failed"].append(f"{one.lib_dir} could not be fully removed")
+            else:
+                report["removed"].append(str(one.lib_dir))
+        elif one.lib_dir:
+            report["kept"].append(f"{one.lib_dir} was not installed by paws (no paws.info.json)")
 
     for name in remove_sls_launchers():
         report["removed"].append(f"{APPS}/{name}")

@@ -341,7 +341,7 @@ class SlsScreen(Screen):
             said += "\n[yellow]left alone (they need root):[/yellow]\n" + "\n".join(kept)
         self._say(said)
 
-    def _run(self, action, label="installing"):
+    def _run(self, label, action):
         self.set_out("")
         self.app.run_job(label, lambda progress: action(lambda f: progress(f, "downloading")), self._installed)
 

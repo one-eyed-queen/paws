@@ -83,9 +83,15 @@ def strip_ld_audit(text: str) -> str:
     for line in text.splitlines():
         if "LD_AUDIT=" in line and line.startswith("Exec="):
             head, _, rest = line.partition("LD_AUDIT=")
-            _, _, tail = rest.partition('"')
-            tail = tail.lstrip(":").lstrip()
-            out.append(f"{head}{tail}" if tail else head.rstrip())
+            if rest.startswith('"'):
+                _, _, tail = rest[1:].partition('"')
+            else:
+                _, _, tail = rest.partition(" ")
+            tail = tail.lstrip().lstrip(":").lstrip()
+            cleaned = f"{head}{tail}".strip() if tail else head.rstrip()
+            if cleaned.startswith("Exec=env") and cleaned.strip() == "Exec=env":
+                cleaned = cleaned.replace("Exec=env", "Exec=steam %U")
+            out.append(cleaned)
         else:
             out.append(line)
     return "\n".join(out) + "\n"

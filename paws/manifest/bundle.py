@@ -125,10 +125,11 @@ class ManifestBundle:
 
 def parse_key_text(content: str, appid: int) -> dict:
     content = content.strip().strip('"')
+    last_word = content.split()[-1] if content.split() else ""
     key = (
-        content.split()[-1]
+        content
         if re.fullmatch(r"[0-9a-fA-F]{32,}", content)
-        else (content if re.fullmatch(r"[0-9a-fA-F]{32,}", content) else None)
+        else (last_word if re.fullmatch(r"[0-9a-fA-F]{32,}", last_word) else None)
     )
     return {"depots": {appid: key} if key else {}, "app_ids": [], "manifests": [], "names": {}}
 
