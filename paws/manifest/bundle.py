@@ -25,7 +25,15 @@ class ManifestBundle:
             # key. writing it under the game's appid (or under depot 0, as this used to) puts a
             # decryption key against a depot that doesn't exist
             if m:
-                self.orphan_keys.append(content)
+                # ...unless its file name is the depot id, which is how plenty of them get saved
+                if path.stem.isdigit():
+                    self.keys.append((int(path.stem), content))
+                else:
+                    self.orphan_keys.append(content)
+                return
+            # or the "depot;key" lines of a depot key list, which do name it
+            for depot, key in re.findall(r"(?m)^\s*(\d+)\s*[;:,=\s]\s*\"?([0-9a-fA-F]{32,})\"?\s*$", content):
+                self.keys.append((int(depot), key))
 
     def add_manifest_file(self, path: Path):
         if path.suffix.lower() != ".manifest":
@@ -120,6 +128,7 @@ class ManifestBundle:
         depots = {d for lm in self.luas for d, _, _ in lm.manifest_ids}
         depots |= {d for d, _, _p in self.manifests}
         depots |= {d for lm in self.luas for d, _, _ in lm.decryption_keys}
+        depots |= {d for d, _ in self.keys}
         return depots
 
 

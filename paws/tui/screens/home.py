@@ -292,6 +292,9 @@ class HomeScreen(Screen):
         steam_text = f"Steam: {st.kind} v{st.client_version}" if st else "Steam: not found"
         sls_text = f"SLS: ver={version}" if sls else "SLS: not installed"
         text = [f"[b]{steam_text}[/b]", f"[b]{sls_text}[/b]"]
+        missing = settings.missing_reason()
+        if missing:
+            text.append(f"[red]{missing}[/red]")
         self._show_latest = not (sls and sls.kind == "windows")  # the release feed is the linux build
         if sls and not sls.desktop_used and sls.kind != "windows":  # windows has no LD_AUDIT, the dll loads itself
             text.append("[red]LD_AUDIT not wired into the .desktop file[/red]")

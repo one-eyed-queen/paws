@@ -13,7 +13,7 @@ ZIP_SUFFIXES = (".zip",)
 SEVENZIP_SUFFIXES = (".7z",)
 TAR_SUFFIXES = (".tar", ".tar.gz", ".tgz", ".tar.xz", ".txz", ".tar.bz2", ".tbz2", ".tar.zst", ".tzst")
 ARCHIVE_SUFFIXES = ZIP_SUFFIXES + SEVENZIP_SUFFIXES + TAR_SUFFIXES
-EXTRA_SUFFIXES = (".zst", ".7zip")
+EXTRA_SUFFIXES = (".zst", ".7zip", ".rar")
 # Path.suffix only ever gives the last piece, so "foo.pkg.tar.zst" reads as ".zst" - anything
 # that has to recognise a tarball has to look at the whole name instead
 TAR_NAMES = (".tar", ".tar.gz", ".tgz", ".tar.xz", ".txz", ".tar.bz2", ".tbz2", ".tar.zst", ".tzst")
@@ -109,6 +109,10 @@ def extract_archive(archive: Path, destination: Path):
     exe = shutil.which("7z") or shutil.which("7zz") or shutil.which("7za")
     if exe:
         r = subprocess.run([exe, "x", "-y", f"-o{destination}", str(archive)], capture_output=True)
+        if r.returncode == 0:
+            return
+    if shutil.which("bsdtar"):  # 7z builds without rar support exist, bsdtar reads it either way
+        r = subprocess.run(["bsdtar", "-xf", str(archive), "-C", str(destination)], capture_output=True)
         if r.returncode == 0:
             return
     raise SlsError(f"cannot extract {archive.name}: install python py7zr or the 7z binary")

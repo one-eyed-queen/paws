@@ -15,6 +15,7 @@ class Feature:
     toggleable: bool = True
     riced_only: bool = False
     needs_sls: bool = False
+    needs_steam: bool = False
 
 
 FEATURES: tuple[Feature, ...] = (
@@ -35,6 +36,7 @@ FEATURES: tuple[Feature, ...] = (
         "install or update",
         "screens.sls",
         "SlsScreen",
+        needs_steam=True,
     ),
     Feature(
         "add",

@@ -9,11 +9,6 @@ from .base import GameInfo, SourceError, get_json
 HEADER_CDN = "https://cdn.cloudflare.steamstatic.com/steam/apps/{appid}/header.jpg"
 
 BLACKLIST = [
-    "soundtrack",
-    "ost",
-    "original soundtrack",
-    "artbook",
-    "graphic novel",
     "demo",
     "beta",
     "server",
@@ -22,6 +17,36 @@ BLACKLIST = [
     "sdk",
     "3d print model",
 ]
+
+
+KIND_WORDS = (
+    (re.compile(r"(?i)\b(art ?books?|digital art)\b"), "artbook"),
+    (re.compile(r"(?i)\b(sound ?tracks?|ost)\b"), "soundtrack"),
+    (re.compile(r"(?i)\bgraphic novel\b"), "graphic novel"),
+)
+STORE_KINDS = {"dlc": "dlc", "music": "soundtrack", "video": "video", "mod": "mod", "demo": "demo"}
+
+
+def kind_label(name: str, store_type: str = "") -> str:
+    """what goes in brackets after a name: artbook, soundtrack, dlc... a main game gets nothing. the store files
+    artbooks under plain dlc, so the name gets the first say"""
+    store_type = store_type.lower()
+    if store_type != "game":
+        for pattern, label in KIND_WORDS:
+            if pattern.search(name or ""):
+                return label
+    return STORE_KINDS.get(store_type, "")
+
+
+def with_kind(name: str, kind: str) -> str:
+    return f"{name} ({kind})" if kind else name
+
+
+def app_kind(appid: str, name: str = "") -> str:
+    data = get_json(f"https://store.steampowered.com/api/appdetails?appids={appid}&filters=basic&cc=us&l=en")
+    app = next(iter(data.values()), {}) or {}
+    info = app.get("data") or {}
+    return kind_label(name or info.get("name", ""), info.get("type", ""))
 
 
 def search_store(term: str, *, cc: str = "us", l: str = "en") -> list[GameInfo]:
@@ -43,6 +68,7 @@ def search_store(term: str, *, cc: str = "us", l: str = "en") -> list[GameInfo]:
                 appid=appid,
                 name=name,
                 price=it.get("price", "") or "",
+                kind=kind_label(name),
                 source="store",
                 # storesearch only hands back a tiny (~80px) thumbnail; the full header is at this fixed CDN
                 # path for every app, no extra request needed to get something that isn't blurry
@@ -138,6 +164,7 @@ def from_store(appid: str) -> GameInfo:
     return GameInfo(
         appid=str(appid),
         name=info.get("name", ""),
+        kind=kind_label(info.get("name", ""), info.get("type", "")),
         price=price.get("final_formatted", ""),
         free=bool(info.get("is_free")),
         packages=main_package(appid, info),

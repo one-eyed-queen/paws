@@ -84,9 +84,10 @@ def remove_rendered(section: str, rendered: str, backup: bool = True) -> tuple[b
     index = section_index(lines, section)
     if index is None:
         return False, bak
-    needle = " ".join(rendered.split())
+    # by the row itself and not its label: the label can have been filled in since this row was written
+    needle = " ".join(_code_part(rendered).split())
     end = block_end_line(lines, index)
-    kept = [l for l in lines[index + 1 : end] if " ".join(l.strip().split()) != needle]
+    kept = [l for l in lines[index + 1 : end] if " ".join(_code_part(l).split()) != needle]
     removed = len(kept) != end - index - 1
     if removed:
         write(path, "\n".join(lines[: index + 1] + kept + lines[end:]) + "\n")

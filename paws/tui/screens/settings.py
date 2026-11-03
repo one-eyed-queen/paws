@@ -140,9 +140,7 @@ class SettingsScreen(Screen):
                 continue
             menu.append(MenuItem(key, label, desc, icon_name))
         for feature in settings.FEATURES:
-            if (minimal and feature in settings.RICED_ONLY) or (
-                feature in settings.NEEDS_SLS and not settings.sls_present()
-            ):
+            if (minimal and feature in settings.RICED_ONLY) or settings.hidden_for_now(feature):
                 continue
             on = not settings.is_disabled(feature)
             label = f"{settings.FEATURE_LABELS[feature]}  {self._state(on)}"

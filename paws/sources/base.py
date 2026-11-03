@@ -34,3 +34,4 @@ class GameInfo:
     developers: list[str] = field(default_factory=list)
     header_image: str = ""
     screenshots: list[str] = field(default_factory=list)
+    kind: str = ""

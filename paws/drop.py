@@ -4,6 +4,7 @@ import os
 import re
 import shlex
 import shutil
+import subprocess
 import tempfile
 import zipfile
 from dataclasses import dataclass, field
@@ -25,18 +26,35 @@ SOURCE_MARKERS = (".cpp", ".c", ".h", ".hpp", "cmakelists.txt", "makefile", ".gi
 PACKAGE_MARKERS = (".pkg.tar.zst", ".pkg.tar.xz", ".deb", ".rpm", ".apk")
 
 
+def _listed_by_tool(p: Path) -> list[str]:
+    """python can't read a .rar without another dependency, but 7z and bsdtar both can"""
+    seven = shutil.which("7z") or shutil.which("7zz")
+    command = [seven, "l", "-slt", str(p)] if seven else ["bsdtar", "-tf", str(p)]
+    if not seven and not shutil.which("bsdtar"):
+        return []
+    try:
+        output = subprocess.run(command, capture_output=True, text=True, errors="replace", timeout=60).stdout
+    except (OSError, subprocess.SubprocessError):
+        return []
+    if seven:
+        return [line[7:] for line in output.splitlines() if line.startswith("Path = ")]
+    return output.splitlines()
+
+
 def _member_names(p: Path) -> list[str]:
     """every path inside an archive, whatever kind it is. returns [] if it can't be read"""
     from .sls.archive import is_archive, is_tar_name
 
     lowered = p.name.lower()
+    if lowered.endswith(".rar"):
+        return _listed_by_tool(p)
     if lowered.endswith(".zip"):
         try:
             with zipfile.ZipFile(p) as z:
                 return [info.filename for info in z.infolist()]
         except Exception:
             return []
-    if lowered.endswith(".7z"):
+    if lowered.endswith((".7z", ".7zip")):
         try:
             import py7zr
 
@@ -273,10 +291,6 @@ def import_files(paths: list[Path]) -> DropResult:
             problems.append(f"{p.name}: couldn't read it ({error})")
     try:
         plan = plan_from_bundle(bundle)
-        has_keys_only = bool(plan.decryption_keys) and not bundle.luas
-        if has_keys_only:
-            plan.decryption_keys = {}
-            problems.append("a .key on its own doesn't say which depot it's for: drop its .lua with it")
         # a .key we couldn't pin to one depot is a warning, not a failure: everything else in
         # the drop is still fine, and the key simply doesn't get written
         for _ in bundle.unpaired_keys():

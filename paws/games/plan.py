@@ -81,6 +81,17 @@ def plan_from_bundle(bundle: ManifestBundle, name: str = "") -> GamePlan:
     flat = bundle.flatten()
     appid = str(bundle.appid or (flat["app_ids"][0] if flat["app_ids"] else ""))
     plan = GamePlan(appid=appid, name=name or "")
+    plan.names = {str(k): v for k, v in flat["names"].items()}
+    if not appid:
+        # a .manifest or a .key on its own only names its depot: ask steam which game that depot is part of
+        from collections import Counter
+
+        from ..sources.depots import owners
+
+        placed = owners(sorted({*bundle.known_depots(), *flat["depots"]}))
+        if placed:
+            appid = plan.appid = Counter(game for game, _ in placed.values()).most_common(1)[0][0]
+            plan.name = plan.name or next(n for game, n in placed.values() if game == appid)
     # a lua unlocker file calls addappid() for the game AND for each of its depots (that's how
     # it registers each depot's decryption key) - an id that also gets a manifest id, or that
     # arrives already carrying a decryption key, is a depot and not a real app, and must not end
@@ -113,7 +124,9 @@ def plan_from_bundle(bundle: ManifestBundle, name: str = "") -> GamePlan:
         try:
             from ..sources import from_store
 
-            plan.packages = [str(p) for p in from_store(appid).packages]
+            info = from_store(appid)
+            plan.packages = [str(p) for p in info.packages]
+            plan.name = plan.name or plan.names.get(appid) or info.name or ""
         except Exception:
             pass
     return plan

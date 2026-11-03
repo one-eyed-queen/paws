@@ -273,6 +273,20 @@ ModalInput, Confirm, ModalInfo, ModalPaste, ModalPick {
     margin: 1 0 0 0;
 }
 
+#add-queue-col {
+    width: 34;
+    height: 100%;
+    margin: 0 0 0 1;
+}
+
+#add-queue-col DataTable {
+    height: 1fr;
+}
+
+#add-queue-title {
+    height: 1;
+}
+
 #add-detail {
     width: 40;
     height: 100%;

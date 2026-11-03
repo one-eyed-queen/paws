@@ -36,6 +36,7 @@ def file_path() -> Path:
 FEATURES = [f.key for f in _FEATURES if f.toggleable]
 RICED_ONLY = {f.key for f in _FEATURES if f.riced_only}
 NEEDS_SLS = {f.key for f in _FEATURES if f.needs_sls}
+NEEDS_STEAM = NEEDS_SLS | {f.key for f in _FEATURES if f.needs_steam}
 FEATURE_LABELS = {f.key: f.label for f in _FEATURES if f.toggleable}
 FEATURE_DESCS = {f.key: f.desc for f in _FEATURES if f.toggleable}
 
@@ -110,10 +111,39 @@ def sls_present():
     return _present[1]
 
 
+_steam = (0.0, True)
+
+
+def steam_present():
+    """same idea for steam itself: SLSsteam has nothing to hook into without it"""
+    global _steam
+    if os.environ.get("PAWS_SHOW_ALL"):
+        return True
+    if time.monotonic() - _steam[0] > 1.0:
+        from .steam.find import find_steam
+
+        _steam = (time.monotonic(), find_steam() is not None)
+    return _steam[1]
+
+
+def hidden_for_now(feature: str) -> bool:
+    """not something you switched off: this machine is missing what the menu works on"""
+    return (feature in NEEDS_STEAM and not steam_present()) or (feature in NEEDS_SLS and not sls_present())
+
+
+def missing_reason() -> str:
+    """the error to show while menus are hidden, empty when nothing is missing"""
+    if not steam_present():
+        return "Steam isn't installed: install it and the SLSsteam and game menus come back"
+    if not sls_present():
+        return "no SLSsteam or HeadCrab found: use Install / Update SLSsteam, the game menus come back after"
+    return ""
+
+
 def is_disabled(feature: str) -> bool:
     if feature in RICED_ONLY and is_minimal():
         return True
-    if feature in NEEDS_SLS and not sls_present():
+    if hidden_for_now(feature):
         return True
     return feature in load().get("disabled", [])
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from .. import config
+from ..config.tidy import tidy
 from ..steam import depotcache as dcache
 from ..steam import vdf
 from ..util import undo
@@ -8,7 +9,7 @@ from .free import free_message, strip_free
 from .plan import GamePlan
 
 
-def apply_plan(plan: GamePlan, *, checked: set[str] | None = None) -> dict:
+def apply_plan(plan: GamePlan, *, checked: set[str] | None = None, nudge: bool = True) -> dict:
     item_is_free, _extras = strip_free(plan)  # every way in (screen, drop, bulk, cli) ends up here
     if item_is_free:
         return {
@@ -48,6 +49,8 @@ def apply_plan(plan: GamePlan, *, checked: set[str] | None = None) -> dict:
                 applied += 1
             except Exception as e:
                 errors.append(f"{c.detail}: {e}")
+        if added:
+            tidy(plan.names | ({plan.appid: plan.name} if plan.name else {}), backup=False)
     if vdf_keys:
         fresh = sorted(set(vdf_keys) - vdf.existing_depot_ids(list(vdf_keys)))
         result = vdf.inject_depot_keys(vdf_keys)
@@ -67,7 +70,7 @@ def apply_plan(plan: GamePlan, *, checked: set[str] | None = None) -> dict:
     if added:
         undo.log("config.add", {"appid": plan.appid, "entries": added})
     undo.log("apply_plan", {"appid": plan.appid, "applied": applied, "errors": errors})
-    nudged = bool(applied) and _nudge_steam(plan.appid)
+    nudged = nudge and bool(applied) and _nudge_steam(plan.appid)
     return {"applied": applied, "errors": errors, "added": len(added), "nudged": nudged}
 
 

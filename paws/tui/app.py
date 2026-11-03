@@ -73,6 +73,7 @@ class PawsApp(App):
         self.underlay.start()
         self.app_resume_signal.subscribe(self, lambda app: self.force_full_repaint())
         self.run_worker(self._remember_good_config, thread=True, group="known-good")
+        self.run_worker(self._add_missing_games, thread=True, group="bg-add")
         self.push_screen(HomeScreen())
         self._fit_to_height(self.size.height)
 
@@ -141,6 +142,16 @@ class PawsApp(App):
             repair.refresh_known_good()
         except Exception:
             pass
+
+    def _add_missing_games(self):
+        from ..games.background import run
+
+        try:
+            added = run()
+        except Exception:  # the next start tries again, and this must never get in the way of the menu
+            return
+        if added:
+            self.call_from_thread(self.tell, f"added {len(added)} missing game(s)", ", ".join(added))
 
     def on_unmount(self):
         if getattr(self, "underlay", None) is not None:
@@ -267,8 +278,15 @@ class PawsApp(App):
                     return
         await super().on_event(event)
 
+    async def _import(self, work, what):
+        """a drop can't reach the hidden menus' work either: same error instead of writing to a config nothing reads"""
+        missing = settings.missing_reason()
+        if missing:
+            return drop.DropResult(False, "nothing added", [missing])
+        return await asyncio.to_thread(work, what)
+
     async def take_drop(self, files):
-        result = await asyncio.to_thread(drop.import_any, files)
+        result = await self._import(drop.import_any, files)
         self.tell(result.title, "; ".join(x for x in result.lines if x)[:200], "information" if result.ok else "error")
         if isinstance(self.screen, DropScreen):
             self.screen.show_result(result)
@@ -276,7 +294,7 @@ class PawsApp(App):
             self.push_screen(DropScreen(result))
 
     async def take_text(self, parsed):
-        result = await asyncio.to_thread(drop.import_text, parsed)
+        result = await self._import(drop.import_text, parsed)
         self.tell(result.title, "; ".join(x for x in result.lines if x)[:200], "information" if result.ok else "error")
         if isinstance(self.screen, DropScreen):
             self.screen.show_result(result)

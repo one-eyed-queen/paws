@@ -4,6 +4,7 @@ from .. import config
 from ..steam import depotcache as dcache
 from ..steam import vdf
 from ..util import undo
+from .background import remember_removed
 from .plan import GamePlan
 
 LEGACY_SECTIONS = ("AdditionalDepots", "AdditionalPackages", "DecryptionKeys")
@@ -119,4 +120,5 @@ def apply_remove(plan: GamePlan) -> dict:
     if depots:
         removed += len(vdf.remove_depot_keys(depots).get("removed", []))
     undo.log("apply_remove", {"appid": appid, "removed": removed})
+    remember_removed(appid)
     return {"removed": removed}

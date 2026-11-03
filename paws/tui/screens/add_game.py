@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import textwrap
 from pathlib import Path
 
-from textual import on
+from textual import on, work
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import Screen
@@ -12,13 +11,14 @@ from textual.widgets import Button, DataTable, Input, Static
 from ... import games
 from ... import manifest
 from ... import sources
+from ...sls.archive import is_archive
+from ...sources.store import app_kind, with_kind
 from ..widgets import hires
 from ..widgets.header import AppHeader
 from ..widgets.modals import ModalInfo, ModalInput
 
 DETAIL_COLS = 34
-DETAIL_TEXT_WIDTH = 36  # #add-detail is 40 cols wide minus its padding/border
-DETAIL_MIN_WIDTH = 96  # below this the results table needs the room more than the detail panel does
+DETAIL_MIN_WIDTH = 130  # below this the results and to-add columns need the room more than the detail panel does
 
 
 class AddGameScreen(Screen):
@@ -36,7 +36,7 @@ class AddGameScreen(Screen):
         # keep the wallpaper off the detail panel so its real-graphics picture doesn't have
         # to share screen space with another kitty image underneath it
         try:
-            return self.query_one("#add-left").region.right
+            return self.query_one("#add-queue-col").region.right
         except Exception:
             return None
 
@@ -53,6 +53,9 @@ class AddGameScreen(Screen):
             with Vertical(id="add-left"):
                 yield DataTable(id="results-table", cursor_type="row", zebra_stripes=True)
                 yield Static("", id="add-hint", classes="panel")
+            with Vertical(id="add-queue-col"):
+                yield Static("to add", id="add-queue-title")
+                yield DataTable(id="queue-table", cursor_type="row", zebra_stripes=True)
             with VerticalScroll(id="add-detail", classes="panel"):
                 yield Static("", id="detail-info")
                 if hires.available():
@@ -64,15 +67,16 @@ class AddGameScreen(Screen):
                     self._img_widget = None
                     yield Static("", id="detail-img")
         with Horizontal(id="add-buttons"):
-            yield Button("Add selected game", id="b-add", variant="primary")
-            yield Button("Apply (checked)", id="b-apply")
+            yield Button("Add to list", id="b-add", variant="primary")
+            yield Button("Apply", id="b-apply")
             yield Button("Back", id="b-back")
 
     def on_mount(self):
         self.query_one("#add-detail").can_focus = False
         self._table().add_columns("appid", "name", "source", "price")
-        self._plan = None
-        self._checked: set[int] = set()
+        self.query_one("#queue-table", DataTable).add_columns("appid", "name")
+        self._queue: list = []
+        self._search_id = 0
         self._results: list = []
         self._detail: object | None = None
         self._detail_timer = None
@@ -99,20 +103,38 @@ class AddGameScreen(Screen):
         self.query_one("#detail-img", Static).update(text)
 
     def _show_results(self, results):
-        # a previous add leaves _plan set, which routes row events to the checklist-toggle
-        # branch instead of _inspect() - starting a new search means going back to browsing
-        self._plan = None
-        self._checked = set()
         self._results = results
         t = self._table()
         t.clear(columns=True)
         t.add_columns("appid", "name", "source", "price")
         for r in results:
             price = f"[#9db0e0]{r.price}[/]" if getattr(r, "price", "") else ""
-            t.add_row(str(r.appid), r.name or str(r.appid), r.source, price)
-        self.set_hint(f"{len(results)} result(s). Arrow keys to browse, Enter to inspect + add.")
+            t.add_row(str(r.appid), with_kind(r.name or str(r.appid), r.kind), r.source, price)
+        self.set_hint(f"{len(results)} result(s). Arrow keys to browse, Enter puts one on the list, Apply adds them.")
         if results:
             t.focus()
+        self._search_id += 1
+        self._load_kinds(self._search_id, results)
+
+    @work(thread=True, exclusive=True, group="add-kinds")
+    def _load_kinds(self, search_id, results):
+        """search hits don't say what they are and asking is one request each, so the brackets fill in behind the list"""
+        from ...sources.base import SourceError
+
+        for row, r in enumerate(results):
+            if r.kind or r.source != "store" or search_id != self._search_id:
+                continue
+            try:
+                kind = app_kind(r.appid, r.name)
+            except (OSError, ValueError, SourceError):
+                continue
+            if kind:
+                self.app.call_from_thread(self._show_kind, search_id, row, r, kind)
+
+    def _show_kind(self, search_id, row, r, kind):
+        if search_id == self._search_id:
+            r.kind = kind
+            self._table().update_cell_at((row, 1), with_kind(r.name, kind))
 
     def on_input_submitted(self, ev: Input.Submitted):
         if ev.input is not None and ev.input.id == "in-query":
@@ -163,7 +185,7 @@ class AddGameScreen(Screen):
                     return
                 self._show_results(hits)
                 if free:
-                    self.set_hint(f"{len(hits)} result(s), {len(free)} free one(s) hidden. Enter to inspect + add.")
+                    self.set_hint(f"{len(hits)} result(s), {len(free)} free one(s) hidden. Enter puts one on the list.")
         except RuntimeError as e:
             self.set_hint(f"[red]{e}[/red]")
         except Exception as e:
@@ -203,41 +225,37 @@ class AddGameScreen(Screen):
         hint_appid = int(typed) if typed.isdigit() else None
         try:
             b = manifest.ManifestBundle(appid=hint_appid)
-            if path.suffix.lower() in (".zip", ".7z"):
+            if is_archive(path):
                 b.add_archive(path, Path.home() / ".cache" / "paws")
             else:
                 b.add_file(path)
-            flat = b.flatten()
+            plan = games.plan_from_bundle(b)  # finds the game itself when the file only names a depot
         except Exception as e:
             self.set_hint(f"[red]{path.name}: {e}[/red]")
             return
-        appid = str(b.appid or (flat["app_ids"][0] if flat["app_ids"] else ""))
-        if not appid:
-            # a lone .manifest or .key has no appid of its own - it needs the matching .lua
-            # (or the game's own AppId) alongside it, otherwise there's nothing to add yet
+        if not plan.appid:
             self.set_hint(
-                f"[red]{path.name} has no AppId in it[/red] - drop its matching .lua "
+                f"[red]couldn't tell which game {path.name} is for[/red] - drop its matching .lua "
                 "alongside it, or a .zip with both, or type the AppId and search first."
             )
             return
-        self.query_one("#in-query", Input).value = appid
-        self._offer(games.plan_from_bundle(b))
+        self.query_one("#in-query", Input).value = plan.appid
+        self._offer(plan)
 
     @on(DataTable.RowSelected)
     def _on_row(self, ev):
-        t = self._table()
-        i = t.get_row_index(ev.row_key)
-        if self._plan is not None:
-            (self._checked.discard if i in self._checked else self._checked.add)(i)
-            self._draw()
+        ev.stop()
+        i = ev.data_table.get_row_index(ev.row_key)
+        if ev.data_table.id == "queue-table":
+            self._unqueue(i)
         elif 0 <= i < len(self._results):
             self._cancel_detail_timer()
             self._inspect(self._results[i])
-        ev.stop()
+            self._add_selected()
 
     @on(DataTable.RowHighlighted)
     def _on_hi(self, ev):
-        if self._plan is None and ev.cursor_row is not None and 0 <= ev.cursor_row < len(self._results):
+        if ev.data_table.id == "results-table" and ev.cursor_row is not None and 0 <= ev.cursor_row < len(self._results):
             r = self._results[ev.cursor_row]
             self._cancel_detail_timer()
             self._detail_timer = self.set_timer(0.2, lambda: self._inspect(r))
@@ -253,18 +271,9 @@ class AddGameScreen(Screen):
         except Exception:
             gi = r
         self._detail = gi
-        box = f"[b]{gi.appid}[/b]  {gi.name}" if gi.name else f"[b]{gi.appid}[/b]"
-        meta_lines = []
-        if gi.developers:
-            meta_lines.append(f"[#9db0e0]by[/] {', '.join(gi.developers[:3])}")
-        if gi.price or gi.free:
-            meta_lines.append("[green]free[/green]" if gi.free else f"[green]{gi.price}[/green]")
-        meta_lines.append(f"[#9db0e0]{len(gi.dlcs)} dlc(s), {len(gi.packages)} package(s)[/]")
-        metadata = "\n".join(f"  ┊ {m}" for m in meta_lines)
-        desc = gi.short_description or gi.about or "no description from this source - use Search to pull store text."
-        wrapped = [line for para in desc.splitlines()[:20] for line in textwrap.wrap(para, DETAIL_TEXT_WIDTH) or [""]]
-        desc = "\n".join(f"  {line}" for line in wrapped[:24])
-        self.set_detail(f"{box}\n{metadata}\n\n{desc}")
+        title = f"[b]{gi.appid}[/b]  {with_kind(gi.name, gi.kind)}" if gi.name else f"[b]{gi.appid}[/b]"
+        price = "[green]free[/green]" if gi.free else f"[green]{gi.price}[/green]" if gi.price else ""
+        self.set_detail(f"{title}\n{price}" if price else title)
         self._show_image(getattr(gi, "header_image", "") or "")
 
     def _show_image(self, url):
@@ -299,72 +308,66 @@ class AddGameScreen(Screen):
         try:
             if not getattr(info, "depot_keys", None) and info.appid.isdigit():
                 info = sources.from_store(info.appid)
-            if self._offer(games.plan_from_info(info)):
-                self.set_hint(self._hint_after_offer or "plan ready - review the checklist, then Apply (checked).")
+            self._offer(games.plan_from_info(info), info.kind)
         except Exception as e:
             self.set_hint(f"[red]{e}[/red]")
-
-    _hint_after_offer = ""
 
     def _free_popup(self, name, appid):
         self.app.push_screen(ModalInfo(games.free_message(name, str(appid)), "free on steam"))
         self.set_hint(f"[#ffb454]{name or appid} is free, nothing added[/]")
 
-    def _offer(self, plan) -> bool:
-        """free things never reach the checklist: the item itself gets a popup, free dlc / linked apps just drop out"""
+    def _offer(self, plan, kind="") -> bool:
+        """onto the to-add list, leaving the search and its results where they are so the next game is one key away.
+        free things never get there: the item itself gets a popup, free dlc / linked apps just drop out"""
         item_is_free, extras = games.strip_free(plan)
         if item_is_free:
             self._free_popup(plan.name, plan.appid)
             return False
-        self._render_plan(plan)
-        self._hint_after_offer = (
-            f"plan ready, {len(extras)} free extra(s) left out. review, then Apply." if extras else ""
-        )
-        if extras:
-            self.set_hint(self._hint_after_offer)
+        label = with_kind(plan.name or plan.appid, kind)
+        if any(queued.appid == plan.appid for queued, _ in self._queue):
+            self.set_hint(f"[#9db0e0]{label} is already on the list[/]")
+            return False
+        self._queue.append((plan, label))
+        self._draw_queue()
+        left_out = f", {len(extras)} free extra(s) left out" if extras else ""
+        self.set_hint(f"{label} on the list{left_out}. Apply adds {len(self._queue)} game(s).")
         return True
 
-    def _render_plan(self, plan):
-        self._plan = plan
-        self._checked = set(range(len(plan.changes())))
-        self._draw()
+    def _draw_queue(self):
+        table = self.query_one("#queue-table", DataTable)
+        table.clear()
+        for plan, label in self._queue:
+            table.add_row(plan.appid, label)
+        self.query_one("#add-queue-title", Static).update(f"to add ({len(self._queue)})" if self._queue else "to add")
 
-    def _draw(self):
-        t = self._table()
-        t.clear(columns=True)
-        t.add_columns("apply", "where", "what", "detail")
-        if self._plan:
-            for i, c in enumerate(self._plan.changes()):
-                mark = "[green]ON[/green]" if i in self._checked else "[#9db0e0]--[/]"
-                t.add_row(mark, c.target, c.action, c.detail)
-            self.set_hint(f"[#9db0e0]space toggles a row; Enter applies. Plan: {self._plan.counts()}[/]")
+    def _unqueue(self, i):
+        if 0 <= i < len(self._queue):
+            _plan, label = self._queue.pop(i)
+            self._draw_queue()
+            self.set_hint(f"{label} off the list")
 
     def action_toggle_row(self):
-        t = self._table()
-        if t.cursor_row is not None and t.row_count and self._plan is not None:
-            i = t.cursor_row
-            (self._checked.discard if i in self._checked else self._checked.add)(i)
-            self._draw()
+        table = self.query_one("#queue-table", DataTable)
+        if table.has_focus and table.row_count:
+            self._unqueue(table.cursor_row)
 
     def _apply(self):
-        if not self._plan:
+        if not self._queue:
+            self.set_hint("[#9db0e0]nothing on the list yet: Enter on a result puts it there[/]")
             return
-        changes = self._plan.changes()
-        checked = {changes[i].key for i in self._checked}
-        result = games.apply_plan(self._plan, checked=checked)
-        if result.get("free"):
-            self._free_popup(self._plan.name, self._plan.appid)
+        names = [label for _plan, label in self._queue]
+        try:
+            result = games.apply_bulk([plan for plan, _label in self._queue])
+        except Exception as e:  # the list stays, so nothing has to be picked again
+            self.set_hint(f"[red]{e}[/red]")
             return
-        self.set_hint(f"[green]applied {result['applied']}[/green] [red]errors={len(result['errors'])}[/red]")
-        name = self._plan.name or self._plan.appid
+        self._queue = []
+        self._draw_queue()
+        self.set_hint(f"[green]added {len(names)} game(s)[/green] [red]errors={len(result['errors'])}[/red]")
         if result["errors"]:
-            self.app.tell(
-                f"{name}: {result['applied']} applied, {len(result['errors'])} failed",
-                str(result["errors"][0])[:160],
-                "warning",
-            )
+            self.app.tell(f"added {len(names)} game(s), with problems", str(result["errors"][0])[:160], "warning")
         else:
-            self.app.tell(f"{name} added", f"{result['applied']} changes applied")
+            self.app.tell(f"added {len(names)} game(s)", ", ".join(names)[:160])
 
     def action_pop(self):
         self.app.pop_screen()
