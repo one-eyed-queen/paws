@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -10,6 +11,10 @@ _LAUNCHERS = {
     "steam.desktop": "Exec=steam %U",
     "steam-native.desktop": "Exec=steam-native %U",
 }
+
+# a separate entry that only ever launches steam with SLSsteam injected. packages used to drop one
+# in the app menu; with only steam.desktop rewritten there is no "SLSsteam" app to click any more.
+SLS_ENTRY = "SLSsteam.desktop"
 
 
 def audit_targets(lib_dir: Path) -> list[Path]:
@@ -64,12 +69,42 @@ def write_launcher(sls_dir: Path) -> list[Path]:
             lines.append(line)
         (apps / name).write_text("\n".join(lines) + "\n")
         wrote = True
+    entry = _sls_entry(audit)
+    if entry is not None:
+        (apps / SLS_ENTRY).write_text(entry)
+        wrote = True
     if wrote:
         try:
             subprocess.run(["update-desktop-database", str(apps)], capture_output=True)
         except Exception:
             pass
     return targets
+
+
+def _sls_entry(audit: str) -> str | None:
+    """the SLSsteam app-menu entry, wired to the real steam binary. skipped when steam isn't a
+    plain executable, because LD_AUDIT can't reach inside a flatpak or a snap."""
+    from ..steam.find import find_steam
+
+    try:
+        found = find_steam()
+    except (ImportError, OSError):
+        found = None
+    binary = (found.binary if found else None) or shutil.which("steam")
+    if not binary or " " in binary:
+        return None
+    return (
+        "[Desktop Entry]\n"
+        "Name=SLSsteam\n"
+        "Comment=Steam with SLSsteam injected (paws)\n"
+        f"Exec=env {audit} {binary} %U\n"
+        "Icon=steam\n"
+        "Terminal=false\n"
+        "Type=Application\n"
+        "Categories=Game;\n"
+        "StartupWMClass=Steam\n"
+        "MimeType=x-scheme-handler/steam;\n"
+    )
 
 
 def strip_ld_audit(text: str) -> str:

@@ -89,10 +89,6 @@ def delete_sequence(image_id: int) -> str:
     return f"\x1b_Ga=d,d=I,i={image_id},q=2\x1b\\"
 
 
-def hide_sequence(image_id: int) -> str:
-    return f"\x1b_Ga=d,d=i,i={image_id},q=2\x1b\\"
-
-
 class Underlay:
     def __init__(self, app):
         self.app = app
@@ -180,9 +176,14 @@ class Underlay:
         return cols, size.height
 
     def _hide(self):
-        if self.bg_id is not None and self.bg_shown:
-            self._send(hide_sequence(self.bg_id))
-            self.bg_shown = False
+        if self.bg_id is not None:
+            # forget the placement completely, not just "not shown": d=i deletes the image data
+            # itself, so placing that same id back later draws nothing. screens that carry their
+            # own picture (home, arcade) used to take the wallpaper with them for the rest of the
+            # session because bg_size still matched and only a re-place was attempted - now the
+            # next visible screen retransmits a fresh image instead
+            self._send(delete_sequence(self.bg_id))
+            self.bg_id, self.bg_size, self.bg_shown = None, None, False
 
     def _scaled_cell(self, cols):
         cw, ch = hires.CELL

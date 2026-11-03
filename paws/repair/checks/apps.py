@@ -1,13 +1,14 @@
-"""AdditionalApps overwrites a game's owner id. fine for a game you only play, but it breaks downloads and can leave
-steam looping on "loading user data". two kinds of rows paws can spot for sure:
-  - `# activated N` rows older paws builds left behind after making tickets
-  - games that are in AppIds too (adding a game puts it in AppIds, never both)
-taking a row out while steam runs can make steam uninstall that game (SLSsteam reports its license as changed), so
-the fix only runs with steam closed: SLSsteam's first load doesn't compare against the old list"""
+"""AdditionalApps is how SLSsteam injects an app you don't own into your library: it appends the
+list to the apps steam thinks you're subscribed to, and that is the only way an unowned game ever
+shows up. so those rows are load-bearing and must stay.
+
+what breaks is the same row for an app steam already lists for you: AdditionalApps overrides that
+app's owner id, downloads fail and steam can loop on "loading user data". that is the only kind of
+row this check takes out, and only with steam closed (removing one live can make steam uninstall
+the game, because SLSsteam reports its license as changed)"""
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
 from ...config.io import write_now
@@ -15,8 +16,6 @@ from ...config.lines import _code_part, block_end_line, item_key, section_index
 from ...util import backup
 from ..model import Problem
 from ._shared import safe_read
-
-ACTIVATED = re.compile(r"#\s*activated\s+\d+")
 
 
 def _ids(lines, section):
@@ -26,23 +25,31 @@ def _ids(lines, section):
     return {item_key(l) for l in lines[index + 1 : block_end_line(lines, index)] if _code_part(l).strip()} - {None}
 
 
-def leftovers(text: str) -> dict[int, tuple[str, str]]:
-    """line number -> (appid, why) for every AdditionalApps row that shouldn't be there"""
+def leftovers(text: str, owned: set[str] | None = None) -> dict[int, tuple[str, str]]:
+    """line number -> (appid, why) for every AdditionalApps row that is doing harm.
+
+    a row for a game you don't own is what keeps it in your library, so it is never touched here.
+    only rows for apps steam already lists for you come out, because those override the owner id
+    without adding anything."""
     lines = text.splitlines()
     index = section_index(lines, "AdditionalApps")
     if index is None:
         return {}
-    in_app_ids = _ids(lines, "AppIds")
+    if owned is None:
+        try:
+            from ...steam.library import owned_appids
+
+            owned = owned_appids()
+        except (ImportError, OSError):
+            owned = set()
+    owned = {str(a) for a in owned}
     out = {}
     for i in range(index + 1, block_end_line(lines, index)):
         line = lines[i]
         appid = item_key(line) if _code_part(line).strip() else None
-        if appid is None:
+        if appid is None or str(appid) not in owned:
             continue
-        if ACTIVATED.search(line):
-            out[i] = (appid, "left over from making tickets")
-        elif appid in in_app_ids:
-            out[i] = (appid, "also in AppIds")
+        out[i] = (appid, "steam already lists it for you, so this only overrides the owner id")
     return out
 
 
@@ -57,13 +64,15 @@ def check_additional_apps(config_path: Path) -> list[Problem]:
     if not found:
         return []
 
+    owned = {a for a, _ in found.values()}
+
     def fix() -> str:
         from ...steam import is_running
 
         if is_running():
             return "close steam first: taking these out while it runs can make it uninstall the games. nothing changed"
         now = safe_read(config_path) or ""
-        rows = leftovers(now)
+        rows = leftovers(now, owned)
         backup.backup_file(config_path)
         write_now(config_path, strip_rows(now, rows))
         return f"took {len(rows)} row(s) out of AdditionalApps ({', '.join(a for a, _ in rows.values())}); backup kept"
@@ -72,9 +81,10 @@ def check_additional_apps(config_path: Path) -> list[Problem]:
     return [
         Problem(
             "config.additionalapps-leftovers",
-            f"{len(found)} AdditionalApps row(s) that break downloads",
-            f"{listed}. AdditionalApps overwrites the owner id: downloads fail and steam can loop on loading user data",
-            "take them out of AdditionalApps (steam has to be closed; AppIds entries stay)",
+            f"{len(found)} AdditionalApps row(s) that shouldn't be there",
+            f"{listed}. these are already in your library, so the row only overrides their owner id: "
+            "downloads fail and steam can loop on loading user data",
+            "take them out (steam has to be closed; AppIds entries stay)",
             fix,
             "error",
         )

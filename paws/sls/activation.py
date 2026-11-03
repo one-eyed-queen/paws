@@ -20,7 +20,8 @@ STEAM_START = 90.0  # extra time when activation has to start steam itself and w
 
 def ensure_subscribed(appid: str) -> str | None:
     """steam only makes a ticket for an app it thinks you own, so the app goes in AdditionalApps for the run.
-    returns the row when this call added it, so activate() can take it back out"""
+    returns the row when this call added it, so activate() can decide whether to take it back out (it stays
+    for a game you don't own: that row is also what keeps it in your library)"""
     from ..config.scalars import get_list
 
     if find_config() is None:
@@ -32,14 +33,21 @@ def ensure_subscribed(appid: str) -> str | None:
 
 
 def _unsubscribe(entry: str | None, result: dict, appid: str | None = None):
-    """AdditionalApps overwrites the owner id: left in, it breaks downloads and can loop steam on loading user
-    data. a row removed while steam runs can get the game uninstalled, so for an installed game it waits for steam
-    to close. a game that isn't installed has nothing to lose, so its row comes out straight away"""
+    """AdditionalApps is what keeps a game you don't own in your library, so for one of those the
+    row stays - taking it out would make the game vanish again. for a game you already own the row
+    only overrides its owner id, which breaks downloads, so that one comes back out. removing a row
+    while steam runs can make it uninstall the game, so an installed one waits for steam to close"""
     if entry is None:
         return
     from ..config.entries import remove_rendered
     from ..config.io import batch
+    from ..steam.library import owned_appids
 
+    if appid and str(appid) not in owned_appids():
+        result["note"] = (
+            f"{appid} isn't in your library, so its AdditionalApps row stays - that row is what puts it there"
+        )
+        return
     if steam.is_running() and not (appid and not_installed(appid)):
         result["note"] = "close steam, then run `paws fix` to take the activation row out of AdditionalApps"
         return

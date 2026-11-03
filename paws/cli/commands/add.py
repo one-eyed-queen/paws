@@ -70,6 +70,25 @@ def run(args) -> int:
         return 1
 
 
+def _fill_from_store(plan) -> None:
+    """a bare `paws add 620` used to write `# 620` and no package at all, because only the store
+    search paths asked for those. best-effort: offline leaves the plan exactly as it was."""
+    if plan.name and plan.packages:
+        return
+    from ...sources.base import SourceError
+
+    try:
+        from ...sources import from_store
+
+        info = from_store(plan.appid)
+    except (ImportError, OSError, SourceError):
+        return
+    plan.name = plan.name or (info.name or "")
+    if not plan.packages:
+        plan.packages = [str(p) for p in (info.packages or [])]
+    plan.names.setdefault(str(plan.appid), plan.name)
+
+
 def _run(args) -> int:
     if args.file:
         plan = games.plan_from_bundle(load_bundle(args.file), name=args.name)
@@ -79,6 +98,7 @@ def _run(args) -> int:
         return _bulk(args, parse_text("\n".join(args.appids)))
     elif args.appids:
         plan = games.plan_add(args.appids[0], name=args.name)
+        _fill_from_store(plan)
     else:
         print("need an appid (or --list / --file)", file=sys.stderr)
         return 2

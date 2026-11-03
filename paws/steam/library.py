@@ -35,6 +35,48 @@ def installed_appids() -> set[str]:
     return set(installed_games())
 
 
+def _apps_block(text: str) -> str:
+    """the inside of Software/Valve/Steam/apps in a localconfig.vdf, brace-matched so the rest of
+    the file (playtime, cloud, controllers) doesn't get scanned for appids too"""
+    i = text.find('"apps"')
+    if i < 0:
+        return ""
+    start = text.find("{", i)
+    if start < 0:
+        return ""
+    depth = 0
+    for j in range(start, len(text)):
+        if text[j] == "{":
+            depth += 1
+        elif text[j] == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start + 1 : j]
+    return ""
+
+
+def owned_appids() -> set[str]:
+    """appids Steam already keeps a library entry for: everything installed, plus every app the
+    signed-in user's own localconfig has a block for.
+
+    this is the line SLSsteam draws in its own config docs: AdditionalApps *injects* an app, which
+    is the only way an unowned game shows up in the library at all - but for an app you already own
+    or share it overrides the owner id and breaks downloads. so it has to be one or the other, and
+    this tells us which."""
+    out = installed_appids()
+    root = find_steam()
+    if not root or not root.root:
+        return out
+    for cfg in (Path(root.root) / "userdata").glob("*/config/localconfig.vdf"):
+        try:
+            text = cfg.read_text(errors="replace")
+        except OSError:
+            continue
+        block = _apps_block(text)
+        out |= {m.group(1) for m in re.finditer(r'^\s*"(\d{1,10})"\s*$', block, re.MULTILINE)}
+    return out
+
+
 def installed_games() -> dict[str, str]:
     """appid -> name for everything actually installed, read straight from each library's own
     appmanifest_<id>.acf files. entirely local and offline - unlike the public store search,

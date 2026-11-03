@@ -72,16 +72,14 @@ def apply_plan(plan: GamePlan, *, checked: set[str] | None = None) -> dict:
 
 
 def _nudge_steam(appid: str) -> bool:
-    """if steam is already running with the API pipe on, ask it to install the app right away
-    instead of waiting on a mechanism that may never fire for it.
+    """if steam is already running with the API pipe on, ask it to install the app right away.
 
-    SLSsteam only asks Valve for an app's depot/product info when it sees the app get ADDED
-    while it's already running (config.cpp's CConfig::setAdditionalApps skips that diff entirely
-    on firstLoad). an app that's already in AdditionalApps by the time steam starts never gets
-    that request and just sits at 0B forever. the API pipe's install command goes through
-    steam's own native IClientAppManager::installApp - same as the user clicking Install
-    themselves, and unlike steam://rungameid it doesn't try to RUN anything, so there's no
-    "missing executable" failure when nothing's downloaded yet.
+    the app showing up in the library is handled by SLSsteam itself: CConfig watches config.yaml
+    (config.cpp onFileChange), reloads it, and setAdditionalApps diffs the new AdditionalApps list
+    against the old one, which is what makes steam subscribe to the app live. this nudge is only
+    about starting the download, through steam's own IClientAppManager::installApp - same as the
+    user clicking Install, and unlike steam://rungameid it doesn't try to RUN anything, so there's
+    no "missing executable" failure when nothing's downloaded yet.
     """
     if not appid or not appid.isdigit():
         return False
@@ -110,10 +108,11 @@ def _apply_cfg(plan, c):
         if config.add_entry(section, line)[0]:  # a skipped duplicate isn't ours to undo
             out.append((section, line))
 
-    if kind == "AppIds":
-        put("AppIds", config.render_item("AppIds", id=value, name=name))
+    if kind in ("AppIds", "AdditionalApps"):
+        put(kind, config.render_item(kind, id=value, name=name))
         # AppIds is a blacklist by default - without this, adding a game here would tell
-        # SLSsteam to EXCLUDE it, the opposite of what adding a game means
+        # SLSsteam to EXCLUDE it, the opposite of what adding a game means. the DLC entries
+        # depend on it too, since only AdditionalApps itself bypasses the exclusion check
         config.set_scalar("UseWhitelist", "yes")
     elif kind == "AdditionalPackages":
         put("AdditionalPackages", config.render_item("AdditionalPackages", id=value, name=name))

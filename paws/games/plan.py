@@ -6,6 +6,18 @@ from pathlib import Path
 from ..manifest.bundle import ManifestBundle
 
 
+def _in_library(appid: str) -> bool:
+    """does steam already list this app for the signed-in user? installed counts, and so does any
+    app with a block in localconfig.vdf. being offline or having no steam at all reads as "not in
+    the library", which only means the game gets the AdditionalApps row it needs to show up"""
+    try:
+        from ..steam.library import owned_appids
+
+        return str(appid) in owned_appids()
+    except (ImportError, OSError):
+        return False
+
+
 @dataclass
 class Change:
     target: str
@@ -33,10 +45,17 @@ class GamePlan:
 
     def changes(self) -> list[Change]:
         out = []
+        # a game you don't own only shows up in the library because SLSsteam appends AdditionalApps
+        # to the list of apps steam thinks you're subscribed to (feats/apps.cpp getSubscribedApps).
+        # AppIds alone never reaches that list - it only decides what gets excluded - so a game
+        # added with AppIds and no AdditionalApps silently never appears. the catch is that
+        # AdditionalApps also overrides the owner id, which is what breaks downloads for a game
+        # you already own or share, so it only goes in for games that aren't in your library yet
+        if self.appid and not _in_library(self.appid):
+            out.append(Change("config.yaml", "add", f"AdditionalApps     {self.appid}"))
         for a in self.additional_apps:
-            # AppIds (+ UseWhitelist: yes), not AdditionalApps: AdditionalApps overwrites the
-            # owner id, which breaks actual downloads - AppIds under a whitelist treats the
-            # game as genuinely owned instead, which is what real depot access needs
+            # AppIds is the whitelist entry the game and each of its DLC need once AdditionalApps
+            # has injected it; without UseWhitelist: yes a blacklist would exclude them instead
             out.append(Change("config.yaml", "add", f"AppIds     {a}"))
         for p in self.packages:
             out.append(Change("config.yaml", "add", f"AdditionalPackages {p}"))

@@ -12,7 +12,10 @@ def check_api_pipe() -> list[Problem]:
         mode = p.lstat().st_mode
     except OSError:
         return []
-    if stat.S_ISFIFO(mode) or stat.S_ISSOCK(mode):
+    # SLSsteam's API is a plain file, not a pipe: src/api.cpp opens it with std::fstream and
+    # watches it with inotify. a regular file is the normal, working state and must not be
+    # flagged - only the wrong kind of thing at that path stops SLSsteam creating it
+    if stat.S_ISREG(mode):
         return []
 
     def fix() -> str:
@@ -23,8 +26,9 @@ def check_api_pipe() -> list[Problem]:
         Problem(
             "api.pipe-not-a-pipe",
             f"{p} is a plain file",
-            "something wrote to it before SLSsteam made the pipe, so SLSsteam can't create it: paws' commands go nowhere",
-            "delete it (SLSsteam recreates the pipe next start)",
+            "SLSsteam's API needs a plain file at that path and cannot create one over a "
+            "pipe, socket or directory: paws' commands would go nowhere",
+            "delete it (SLSsteam recreates the file next start)",
             fix,
         )
     ]
