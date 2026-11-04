@@ -152,12 +152,32 @@ class PawsApp(App):
     def _add_missing_games(self):
         from ..games.background import run
 
+        def report(stage, done, total, name=""):
+            if self.is_running:
+                self.call_from_thread(self._fix_progress, stage, done, total, name)
+
         try:
-            added = run()
-        except Exception:  # the next start tries again, and this must never get in the way of the menu
+            added = run(report)
+        except Exception as error:  # the next start tries again, and this must never get in the way of the menu
+            if self.is_running:
+                self.call_from_thread(self._fix_progress, "failed", 0, 0, str(error))
             return
         if added and self.is_running:
             self.call_from_thread(self.tell, f"added {len(added)} missing game(s)", ", ".join(added))
+
+    _fix_popup = None
+
+    def _fix_progress(self, stage, done, total, name):
+        """the popup only appears once there's really something to do: a start with nothing missing never shows it"""
+        from .widgets.modals import FixingPopup
+
+        popup = self._fix_popup
+        if popup is None:
+            if stage in ("done", "failed"):
+                return
+            popup = self._fix_popup = FixingPopup()
+            self.push_screen(popup)
+        popup.show_progress(stage, done, total, name)
 
     def on_unmount(self):
         if getattr(self, "underlay", None) is not None:
@@ -316,6 +336,7 @@ class PawsApp(App):
         return await asyncio.to_thread(work, what)
 
     async def take_drop(self, files):
+        self.tell("adding what you dropped...", files[0].name if len(files) == 1 else f"{len(files)} files")
         result = await self._import(drop.import_any, files)
         self.tell(result.title, "; ".join(x for x in result.lines if x)[:200], "information" if result.ok else "error")
         if isinstance(self.screen, DropScreen):

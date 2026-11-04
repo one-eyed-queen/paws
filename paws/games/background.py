@@ -42,7 +42,7 @@ def _ids(data, sections) -> list[str]:
     return found
 
 
-def missing_games() -> dict[str, str]:
+def missing_games(progress=None) -> dict[str, str]:
     """appid -> name for games the config knows about (depot keys, manifests, or an id put in by hand) that never
     went through add game, which writes both AdditionalApps and AppIds. owners() turns a dlc or depot into its game.
     a game you already have in steam isn't missing: an AdditionalApps row would only override its owner id"""
@@ -52,7 +52,7 @@ def missing_games() -> dict[str, str]:
     complete = {str(a) for a in data.get("AdditionalApps") or []} & {str(a) for a in data.get("AppIds") or []}
     skipped = _skipped()
     found = {}
-    for appid, name in owners(_ids(data, DEPOT_SECTIONS) + _ids(data, APP_SECTIONS)).values():
+    for appid, name in owners(_ids(data, DEPOT_SECTIONS) + _ids(data, APP_SECTIONS), progress=progress).values():
         if appid not in complete and appid not in skipped and not _in_library(appid):
             found[appid] = name
     return found
@@ -72,14 +72,16 @@ def _plan(appid: str, name: str):
     return plan_add(appid, name=name, packages=packages)
 
 
-def add_missing() -> list[str]:
+def add_missing(report=None) -> list[str]:
     """the background half of add game. network first, and only then the one short batch of config writes, since
     config.batch is shared by the whole process and this runs on a worker thread"""
     from ..sources.store import free_ids
 
-    missing = missing_games()
+    tell = report or (lambda *_: None)
+    missing = missing_games(lambda done, total: tell("checking", done, total))
     if not missing:
         return []
+    tell("adding", 0, len(missing))
     with ThreadPoolExecutor(max_workers=8) as pool:
         plans = list(pool.map(lambda item: _plan(*item), missing.items()))
     if not plans:
@@ -87,7 +89,8 @@ def add_missing() -> list[str]:
     free_ids([p.appid for p in plans])  # apply_plan reuses this answer instead of asking inside the batch
     added = []
     with config.batch():
-        for plan in plans:
+        for number, plan in enumerate(plans, 1):
+            tell("adding", number, len(plans), plan.name or plan.appid)
             # nudge=False: starting up must never kick off a download for every game it finds
             result = apply_plan(plan, nudge=False)
             if result.get("free"):  # refused for good, so it isn't looked up again every start
@@ -97,7 +100,7 @@ def add_missing() -> list[str]:
     return added
 
 
-def run() -> list[str]:
+def run(report=None) -> list[str]:
     """what paws does at every start: add games that are missing, then put names and order on the config rows"""
     from .. import settings
     from ..config.tidy import tidy, unnamed_ids
@@ -105,6 +108,8 @@ def run() -> list[str]:
 
     if not settings.get_setting("auto_add_games") or settings.missing_reason():
         return []
-    added = add_missing()
+    added = add_missing(report)
+    if report is not None:
+        report("done", len(added), len(added))
     tidy(names(unnamed_ids()))
     return added

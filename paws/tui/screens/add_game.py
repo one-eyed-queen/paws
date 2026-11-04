@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import html
+import re
 from pathlib import Path
 
 from textual import on, work
@@ -18,7 +20,12 @@ from ..widgets.header import AppHeader
 from ..widgets.modals import ModalInfo, ModalInput
 
 DETAIL_COLS = 34
-DETAIL_MIN_WIDTH = 130  # below this the results and to-add columns need the room more than the detail panel does
+DETAIL_MIN_WIDTH = 110  # below this the results and to-add columns need the room more than the detail panel does
+
+
+def _plain(text: str) -> str:
+    """store text can carry html entities and the odd tag"""
+    return html.unescape(re.sub(r"<[^>]+>", "", text or "")).strip()
 
 
 class AddGameScreen(Screen):
@@ -36,6 +43,8 @@ class AddGameScreen(Screen):
         # keep the wallpaper off the detail panel so its real-graphics picture doesn't have
         # to share screen space with another kitty image underneath it
         try:
+            if not self.query_one("#add-detail").display:
+                return None  # no picture panel at this width, so the wallpaper gets the whole screen
             return self.query_one("#add-queue-col").region.right
         except Exception:
             return None
@@ -66,6 +75,7 @@ class AddGameScreen(Screen):
                 else:
                     self._img_widget = None
                     yield Static("", id="detail-img")
+                yield Static("", id="detail-desc", markup=False)
         with Horizontal(id="add-buttons"):
             yield Button("Add to list", id="b-add", variant="primary")
             yield Button("Apply", id="b-apply")
@@ -77,6 +87,7 @@ class AddGameScreen(Screen):
         self.query_one("#queue-table", DataTable).add_columns("appid", "name")
         self._queue: list = []
         self._search_id = 0
+        self._infos: dict = {}
         self._results: list = []
         self._detail: object | None = None
         self._detail_timer = None
@@ -258,23 +269,44 @@ class AddGameScreen(Screen):
         if ev.data_table.id == "results-table" and ev.cursor_row is not None and 0 <= ev.cursor_row < len(self._results):
             r = self._results[ev.cursor_row]
             self._cancel_detail_timer()
-            self._detail_timer = self.set_timer(0.2, lambda: self._inspect(r))
+            self._detail_timer = self.set_timer(0.15, lambda: self._inspect_later(r))
 
     def _cancel_detail_timer(self):
         if self._detail_timer is not None:
             self._detail_timer.stop()
             self._detail_timer = None
 
+    @work(thread=True, exclusive=True, group="add-inspect")
+    def _inspect_later(self, r):
+        """the store answer takes a moment, and arrowing down a list shouldn't stutter on every row"""
+        info = self._full_info(r)
+        self.app.call_from_thread(self._show_info, r, info)
+
+    def _show_info(self, r, info):
+        table = self._table()
+        if table.cursor_row < len(self._results) and self._results[table.cursor_row] is r:
+            self._show_detail(info)
+
+    def _full_info(self, r):
+        if r.source != "store":
+            return r
+        if r.appid not in self._infos:
+            try:
+                self._infos[r.appid] = sources.from_store(r.appid)
+            except Exception:
+                return r
+        return self._infos[r.appid]
+
     def _inspect(self, r):
-        try:
-            gi = sources.from_store(r.appid) if r.source == "store" else r
-        except Exception:
-            gi = r
+        self._show_detail(self._full_info(r))
+
+    def _show_detail(self, gi):
         self._detail = gi
         title = f"[b]{gi.appid}[/b]  {with_kind(gi.name, gi.kind)}" if gi.name else f"[b]{gi.appid}[/b]"
         price = "[green]free[/green]" if gi.free else f"[green]{gi.price}[/green]" if gi.price else ""
         self.set_detail(f"{title}\n{price}" if price else title)
         self._show_image(getattr(gi, "header_image", "") or "")
+        self.query_one("#detail-desc", Static).update(_plain(gi.short_description))
 
     def _show_image(self, url):
         from .. import imgpreview

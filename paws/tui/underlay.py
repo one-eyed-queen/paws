@@ -4,6 +4,7 @@ import asyncio
 import base64
 import itertools
 import os
+import threading
 import time
 import zlib
 from random import randint
@@ -16,7 +17,7 @@ from .widgets import backdrop, hires, scene
 
 Z_BG = -1_500_000_000
 MAX_SIDE = 1600
-TICK = 0.3
+TICK = 0.1
 REPLACE_EVERY = 4.0
 RESEND_EVERY = 60.0
 
@@ -89,6 +90,19 @@ def delete_sequence(image_id: int) -> str:
     return f"\x1b_Ga=d,d=I,i={image_id},q=2\x1b\\"
 
 
+_pictures: dict[tuple, bytes] = {}  # building one is the slow part, and every screen change needs one
+
+
+def _picture(cols, rows, cell) -> bytes:
+    key = (cols, rows, cell)
+    if key not in _pictures:
+        png = png_bytes(scene.compose(cols, rows, cell))
+        while len(_pictures) >= 6:
+            _pictures.pop(next(iter(_pictures)))
+        _pictures[key] = png
+    return _pictures[key]
+
+
 class Underlay:
     def __init__(self, app):
         self.app = app
@@ -101,6 +115,7 @@ class Underlay:
         self.bg_shown = False
         self.sent_at = 0.0
         self.placed_at = 0.0
+        self._warming = False
 
     def start(self):
         if wanted():
@@ -142,6 +157,7 @@ class Underlay:
         scr = self._screen()
         if scr is None:
             self._hide()
+            self._warm()
             return
         size = self.app.size
         cols, rows = self._region(scr, size)
@@ -160,6 +176,23 @@ class Underlay:
                 self._send(place_sequence(self.bg_id, cols, rows))
             return
         await self._apply(cols, rows)
+
+    def _warm(self):
+        """the home screen has no wallpaper of its own, so build it while nobody's waiting: the first screen opened
+        from the menu then has it right away"""
+        size = self.app.size
+        cell = self._scaled_cell(size.width)
+        if self._warming or not size.width or (size.width, size.height, cell) in _pictures:
+            return
+        self._warming = True
+
+        def build():
+            try:
+                _picture(size.width, size.height, cell)
+            finally:
+                self._warming = False
+
+        threading.Thread(target=build, name="paws-bg-warm", daemon=True).start()
 
     def _region(self, scr, size):
         # a screen can shrink the background to its left-hand columns (e.g. to leave a plain
@@ -194,8 +227,11 @@ class Underlay:
         self.busy = True
         try:
             cell = self._scaled_cell(cols)
-            png = await asyncio.to_thread(lambda: png_bytes(scene.compose(cols, rows, cell)))
-            if self._screen() is None or self.app.size.width != cols or self.app.size.height != rows:
+            png = await asyncio.to_thread(_picture, cols, rows, cell)
+            # compared to what the screen wants now, not the window: a screen can ask for fewer columns (add game
+            # does), and comparing to the window threw that picture away, leaving no background at all
+            scr = self._screen()
+            if scr is None or self._region(scr, self.app.size) != (cols, rows):
                 return
             old_bg = self.bg_id
             new_id = next(self._ids)

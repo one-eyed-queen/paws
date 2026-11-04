@@ -274,7 +274,7 @@ ModalInput, Confirm, ModalInfo, ModalPaste, ModalPick {
 }
 
 #add-queue-col {
-    width: 34;
+    width: 28;
     height: 100%;
     margin: 0 0 0 1;
 }
@@ -299,6 +299,33 @@ ModalInput, Confirm, ModalInfo, ModalPaste, ModalPick {
 }
 
 #detail-img {
+    margin-top: 1;
+}
+
+#detail-desc {
+    margin-top: 1;
+    height: auto;
+    width: 100%;
+}
+
+FixingPopup {
+    align: center middle;
+}
+
+#modal-fixing {
+    width: 60;
+    height: auto;
+    padding: 1 2;
+    border: round $primary;
+    background: $surface;
+}
+
+#modal-fixing Label, #fix-bar {
+    width: 100%;
+}
+
+#fix-buttons {
+    height: auto;
     margin-top: 1;
 }
 

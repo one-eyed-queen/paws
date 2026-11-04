@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import time
+
 from textual import on
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Button, Input, Label, TextArea
+from textual.widgets import Button, Input, Label, ProgressBar, TextArea
 
 
 class ModalInput(ModalScreen[str]):
@@ -202,3 +204,59 @@ class ModalPaste(ModalScreen[str]):
     @on(Button.Pressed, "#mp-cancel")
     def action_cancel(self):
         self.dismiss(None)
+
+
+class FixingPopup(ModalScreen[None]):
+    """shown while paws adds the games missing from the config. the work runs behind it, so hiding it stops nothing"""
+
+    BINDINGS = [Binding("escape", "close", "hide"), Binding("q", "close", "hide", show=False)]
+    STAGES = {"checking": "looking through your config", "adding": "adding the missing games"}
+
+    def compose(self):
+        with Container(id="modal-fixing"):
+            yield Label("[b]Fixing your library[/b]", id="fix-title")
+            yield Label("", id="fix-stage", markup=False)
+            yield ProgressBar(id="fix-bar", show_eta=False)
+            yield Label("", id="fix-time")
+            with Horizontal(id="fix-buttons"):
+                yield Button("Hide", id="fix-close")
+
+    def on_mount(self):
+        self._started = time.monotonic()
+        self._finished = False
+        self._ticker = self.set_interval(0.5, self._show_time)
+        self._show_time()
+
+    def _show_time(self):
+        self.query_one("#fix-time", Label).update(f"{int(time.monotonic() - self._started)}s")
+
+    def show_progress(self, stage, done, total, name=""):
+        if not self.is_attached:
+            return
+        words = self.query_one("#fix-stage", Label)
+        bar = self.query_one("#fix-bar", ProgressBar)
+        if stage in ("done", "failed"):
+            self._finished = True
+            self._ticker.stop()
+            self._show_time()
+            bar.update(total=1, progress=1)
+            if stage == "failed":
+                words.update(f"couldn't finish, paws tries again next start: {name}")
+            else:
+                words.update(f"done: added {done} game(s), restart steam if they don't show" if done else "done: nothing was missing")
+            self.set_timer(4, self.action_close)
+            return
+        words.update(f"{self.STAGES[stage]}: {name}" if name else f"{self.STAGES[stage]} ({done}/{total})")
+        bar.update(total=max(total, 1), progress=done)
+
+    @on(Button.Pressed, "#fix-close")
+    def _hide(self):
+        self.action_close()
+
+    def action_close(self):
+        if not self.is_attached:
+            return
+        if self.app.screen is self:
+            self.dismiss(None)
+        elif self._finished:  # something opened on top: go once it's our turn, never sit there after finishing
+            self.set_timer(1, self.action_close)

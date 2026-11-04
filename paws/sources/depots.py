@@ -75,7 +75,7 @@ def _own_depots(game: str) -> list[str]:
     return [d for d, row in rows.items() if d.isdigit() and isinstance(row, dict) and "depotfromapp" not in row]
 
 
-def owners(depots, limit: int = 400, workers: int = 12) -> dict[str, tuple[str, str]]:
+def owners(depots, limit: int = 400, workers: int = 12, progress=None) -> dict[str, tuple[str, str]]:
     """depot id -> (game appid, game name) for each depot steam can place. a .manifest or a .key only ever names its
     depot, so this is how those get back to a game. answers are cached, `limit` caps fresh searches per call, and a
     failed lookup just isn't in the result"""
@@ -103,9 +103,15 @@ def owners(depots, limit: int = 400, workers: int = 12) -> dict[str, tuple[str, 
                 for sibling in _own_depots(found[0]):
                     known.setdefault(sibling, {"appid": found[0], "name": found[1]})
             _save(cache)  # as it goes: closing paws mid-way must not throw the finished lookups away
+            done[0] += 1
+            if progress is not None:
+                progress(done[0], len(fresh))
 
     fresh = [d for d in wanted if not settled(d)][:limit]
+    done = [0]
     if fresh:
+        if progress is not None:
+            progress(0, len(fresh))
         with ThreadPoolExecutor(max_workers=workers) as pool:
             list(pool.map(one, fresh))
     return {d: (known[d]["appid"], known[d].get("name", "")) for d in wanted if known.get(d, {}).get("appid")}
