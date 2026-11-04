@@ -4,7 +4,7 @@ import getpass
 import json
 import sys
 
-from ...sls import encode, tickets
+from ...sls import encode, share, tickets
 from ...util import clipboard
 
 NAME = "tickets"
@@ -26,6 +26,15 @@ def add_parser(subparsers, common):
     unpack.add_argument(
         "--passphrase-file", metavar="FILE", help="read the passphrase from the first line of FILE ('-' = stdin)"
     )
+
+    share = sp.add_parser("share", parents=[common], help="make a one-line code to send someone a game's tickets")
+    share.add_argument("appid")
+    share.add_argument("--only", choices=("encrypted", "normal"), help="send just this ticket instead of both")
+    share.add_argument("--no-copy", action="store_true", help="don't put the code on the clipboard, just print it")
+
+    take = sp.add_parser("take", parents=[common], help="save the tickets from a code someone sent you")
+    take.add_argument("code", help="the paws. code, or - to read it from stdin")
+    take.add_argument("--no-add", action="store_true", help="only save the tickets, don't add the game too")
 
     show = sp.add_parser("show", parents=[common], help="show both tickets of an app side by side")
     show.add_argument("appid")
@@ -84,6 +93,33 @@ def run(args) -> int:
             print(json.dumps([{"filename": t.filename, "appid": t.appid} for t in saved]))
         else:
             print(f"restored {len(saved)} ticket(s): " + ", ".join(t.filename for t in saved))
+        return 0
+
+    if subparsers == "share":
+        try:
+            code = share.make_code(args.appid, args.only)
+        except (ValueError, OSError) as e:
+            print(f"paws: {e}", file=sys.stderr)
+            return 1
+        if args.json:
+            print(json.dumps({"appid": args.appid, "code": code}))
+        elif args.no_copy or not clipboard.copy(code):
+            print(code)
+        else:
+            print(share.describe(args.appid, share.read_code(code)["tickets"]))
+            print(f"copied the code ({len(code)} chars). anyone with it can use these tickets")
+        return 0
+
+    if subparsers == "take":
+        try:
+            saved = share.take_code(sys.stdin.read() if args.code == "-" else args.code, add_game=not args.no_add)
+        except (ValueError, OSError) as e:
+            print(f"paws: {e}", file=sys.stderr)
+            return 1
+        if args.json:
+            print(json.dumps([{"filename": t.filename, "appid": t.appid} for t in saved]))
+        else:
+            print(f"saved {len(saved)} ticket(s): " + ", ".join(t.filename for t in saved))
         return 0
 
     if subparsers == "show":

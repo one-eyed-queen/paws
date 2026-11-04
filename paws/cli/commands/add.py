@@ -24,6 +24,9 @@ def add_parser(subparsers, common):
     p.add_argument(
         "--lookup", action="store_true", help="look names up on the store for ids that have none (needs internet)"
     )
+    p.add_argument(
+        "--missing", action="store_true", help="add every game the config has keys, manifests or an id for, right now"
+    )
     p.add_argument("--dry-run", action="store_true", help="show what would be added, change nothing")
 
 
@@ -89,7 +92,21 @@ def _fill_from_store(plan) -> None:
     plan.names.setdefault(str(plan.appid), plan.name)
 
 
+def _missing(args) -> int:
+    from ...games import background
+
+    if args.dry_run:
+        for appid, name in background.missing_games().items():
+            print(f"would add {appid}  # {name}")
+        return 0
+    added = background.add_missing()
+    print(json.dumps(added) if args.json else f"added {len(added)} missing game(s)" + (": " + ", ".join(added) if added else ""))
+    return 0
+
+
 def _run(args) -> int:
+    if args.missing:
+        return _missing(args)
     if args.file:
         plan = games.plan_from_bundle(load_bundle(args.file), name=args.name)
     elif args.list:

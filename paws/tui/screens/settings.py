@@ -84,6 +84,13 @@ class SettingsScreen(Screen):
                 "settings",
             ),
             (
+                "auto_add_games",
+                f"Add missing games on start  {self._state(get('auto_add_games'))}",
+                "in the background, add games that have keys, manifests or an id in the config but never went "
+                "through add game, and put names on the config rows",
+                "settings",
+            ),
+            (
                 "check_update",
                 f"Check for a paws update now  [{CYAN}]v{__version__}[/]",
                 "ask github now, even with auto-update off. if there's something newer it offers to install it.",
@@ -183,6 +190,8 @@ class SettingsScreen(Screen):
             settings.set_setting("random_banner", not settings.get_setting("random_banner"))
         elif data == "auto_update":
             settings.set_setting("auto_update", not settings.get_setting("auto_update"))
+        elif data == "auto_add_games":
+            settings.set_setting("auto_add_games", not settings.get_setting("auto_add_games"))
         elif data == "check_update":
             note = "checking github..."
             self._check_update()

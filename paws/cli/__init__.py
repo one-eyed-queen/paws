@@ -20,6 +20,9 @@ def __getattr__(name: str):
     raise AttributeError(name)
 
 
+NEEDS_GAMES = ("add", "remove", "activate", "plugins")  # same as the menus that hide without steam + SLSsteam
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     if all(a in _MENU_FLAGS for a in argv):
@@ -45,6 +48,13 @@ def main(argv: list[str] | None = None) -> int:
     have_tty = sys.stdin.isatty() and sys.stdout.isatty()
     if args.window or (args.command is None and not have_tty):
         return open_window()
+    if args.command in NEEDS_GAMES and not getattr(args, "help", False):
+        from .. import settings
+
+        missing = settings.missing_reason()
+        if missing:
+            print(f"paws: {missing}", file=sys.stderr)
+            return 1
     _remember_good_config()
     return COMMANDS[args.command or "menu"].run(args)
 

@@ -24,6 +24,7 @@ def add_parser(subparsers, common):
             "features",
             "launch",
             "update",
+            "auto-add",
         ],
         default="nsfw",
         help="show or set",
@@ -87,6 +88,10 @@ def run(args) -> int:
         if args.value is not None:
             settings.set_setting("auto_update", args.value.lower() in _ON)
         print(f"update on start: {'on' if settings.get_setting('auto_update') else 'off'}")
+    elif what == "auto-add":
+        if args.value is not None:
+            settings.set_setting("auto_add_games", args.value.lower() in _ON)
+        print(f"add missing games on start: {'on' if settings.get_setting('auto_add_games') else 'off'}")
     elif what == "launch":
         if args.value is not None:
             settings.set_setting("launch_cmd", args.value)

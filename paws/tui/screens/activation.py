@@ -12,11 +12,12 @@ from textual.widgets import Button, DataTable, Input, RadioButton, RadioSet, Sta
 from ... import steam
 from ...sls import activation
 from ...sls import encode as encode_mod
+from ...sls import share as share_mod
 from ...sls import tickets
 from ...util import clipboard
 from ..widgets.footer import FooterHelp
 from ..widgets.header import AppHeader
-from ..widgets.modals import Confirm, ModalInfo, ModalInput, ModalPaste
+from ..widgets.modals import Confirm, ModalInfo, ModalInput, ModalPaste, ModalPick
 
 KINDS = (
     ("both", "Both tickets"),
@@ -77,6 +78,8 @@ class ActivationScreen(Screen):
                         yield Button("Paste", id="b-imp")
                         yield Button("Copy", id="b-copy")
                         yield Button("Delete", id="b-del")
+                        yield Button("Share", id="b-share")
+                        yield Button("Take", id="b-take")
                         yield Button("Backup", id="b-pack")
                         yield Button("Restore", id="b-unpack")
                         yield Button("Details", id="b-detail")
@@ -207,6 +210,10 @@ class ActivationScreen(Screen):
             self._import_pressed()
         elif sid == "b-copy":
             self._copy_selected()
+        elif sid == "b-share":
+            self._share_selected()
+        elif sid == "b-take":
+            self._take_pressed()
         elif sid == "b-pack":
             self._pack_selected()
         elif sid == "b-unpack":
@@ -303,6 +310,51 @@ class ActivationScreen(Screen):
             f"{tk.filename} is in the cache and {tk.appid} is in your config: SLSsteam loads the ticket when the game starts"
         )
         self.app.tell(f"{tk.appid} ready to use", tk.filename)
+
+    def _share_selected(self):
+        tk = self._selected()
+        if tk is None:
+            return
+        if len(share_mod.tickets_for(tk.appid)) < 2:
+            self._show_share(tk.appid, None)
+            return
+        self._share_appid = tk.appid
+        self.app.push_screen(
+            ModalPick(
+                f"Share {tk.appid}",
+                "this game has both tickets",
+                [("Both tickets", "both"), ("Encrypted only", "encrypted"), ("Normal only", "normal")],
+            ),
+            self._share_picked,
+        )
+
+    def _share_picked(self, choice):
+        if choice:
+            self._show_share(self._share_appid, None if choice == "both" else choice)
+
+    def _show_share(self, appid, only):
+        try:
+            code = share_mod.make_code(appid, only)
+        except (ValueError, OSError) as e:
+            self.set_out(f"[red]{e}[/red]")
+            return
+        body = share_mod.read_code(code)
+        count = len(body["tickets"])
+        kind = "both tickets" if count > 1 else ("encrypted" if body["tickets"][0]["encrypted"] else "normal") + " ticket"
+        copied = clipboard.copy(code)
+        details = share_mod.describe(appid, body["tickets"])
+        self.app.push_screen(ModalInfo(f"{details}\n\n{code}", title=f"Share {appid}: {kind}", copy=code))
+        self.set_out(
+            f"{'copied' if copied else 'copy failed, use the popup'}: {kind}, {len(code)} chars. "
+            "they paste it into paws. anyone holding it can use these tickets"
+        )
+
+    def _take_pressed(self):
+        self.app.push_screen(ModalPaste("paste the code someone sent you (paws....)", "Take shared tickets"), self._take)
+
+    def _take(self, text):
+        if text:
+            self.app.run_worker(lambda: self.app.take_ticket_code(text), thread=True, group="take-ticket")
 
     def _import_pressed(self):
         self.app.push_screen(

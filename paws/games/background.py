@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import json
+from concurrent.futures import ThreadPoolExecutor
 
 from .. import config
 from ..paths import paws_home
 from .apply import apply_plan
 from .plan import _in_library, plan_add
 
-DEPOT_SECTIONS = ("ManifestIds", "DecryptionKeys", "AdditionalDepots")
+DEPOT_SECTIONS = ("ManifestIds", "DecryptionKeys", "AdditionalDepots")  # keyed by depot
+APP_SECTIONS = ("AppIds", "AdditionalApps", "AppTokens", "DlcData")  # app ids, typed in by hand or left by older paws
 
 
 def _skip_path():
@@ -31,18 +33,27 @@ def remember_removed(appid: str) -> None:
         pass
 
 
+def _ids(data, sections) -> list[str]:
+    found = []
+    for section in sections:
+        value = data.get(section)
+        if isinstance(value, (dict, list)):
+            found += [str(x) for x in value]
+    return found
+
+
 def missing_games() -> dict[str, str]:
-    """appid -> name for games whose manifests or depot keys are in the config but which were never added. a game
-    you already have in steam isn't missing: an AdditionalApps row would only override its owner id"""
+    """appid -> name for games the config knows about (depot keys, manifests, or an id put in by hand) that never
+    went through add game, which writes both AdditionalApps and AppIds. owners() turns a dlc or depot into its game.
+    a game you already have in steam isn't missing: an AdditionalApps row would only override its owner id"""
     from ..sources.depots import owners
 
     data = config.parsed()
-    depots = [str(d) for section in DEPOT_SECTIONS if isinstance(data.get(section), dict) for d in data[section]]
-    listed = {str(a) for a in data.get("AdditionalApps") or []}
+    complete = {str(a) for a in data.get("AdditionalApps") or []} & {str(a) for a in data.get("AppIds") or []}
     skipped = _skipped()
     found = {}
-    for appid, name in owners(depots).values():
-        if appid not in listed and appid not in skipped and not _in_library(appid):
+    for appid, name in owners(_ids(data, DEPOT_SECTIONS) + _ids(data, APP_SECTIONS)).values():
+        if appid not in complete and appid not in skipped and not _in_library(appid):
             found[appid] = name
     return found
 
@@ -66,7 +77,11 @@ def add_missing() -> list[str]:
     config.batch is shared by the whole process and this runs on a worker thread"""
     from ..sources.store import free_ids
 
-    plans = [_plan(appid, name) for appid, name in missing_games().items()]
+    missing = missing_games()
+    if not missing:
+        return []
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        plans = list(pool.map(lambda item: _plan(*item), missing.items()))
     if not plans:
         return []
     free_ids([p.appid for p in plans])  # apply_plan reuses this answer instead of asking inside the batch
@@ -74,7 +89,10 @@ def add_missing() -> list[str]:
     with config.batch():
         for plan in plans:
             # nudge=False: starting up must never kick off a download for every game it finds
-            if apply_plan(plan, nudge=False).get("added"):
+            result = apply_plan(plan, nudge=False)
+            if result.get("free"):  # refused for good, so it isn't looked up again every start
+                remember_removed(plan.appid)
+            elif result.get("added"):
                 added.append(plan.name or plan.appid)
     return added
 
@@ -85,7 +103,7 @@ def run() -> list[str]:
     from ..config.tidy import tidy, unnamed_ids
     from ..sources.depots import names
 
-    if settings.missing_reason():
+    if not settings.get_setting("auto_add_games") or settings.missing_reason():
         return []
     added = add_missing()
     tidy(names(unnamed_ids()))

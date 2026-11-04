@@ -21,6 +21,7 @@ DEFAULTS: dict = {
     "editor": "auto",
     "alias_shell": "",
     "auto_update": True,
+    "auto_add_games": True,
     "update_interval_min": 5,
 }
 

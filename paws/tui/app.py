@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import re
+import sys
+import threading
 import time
 
 from textual import events
@@ -14,6 +17,7 @@ from textual.theme import Theme
 from textual.widgets import Input, TextArea
 
 from .. import drop, notify, settings, textdrop
+from ..sls import share
 from .jobs import Job
 
 
@@ -73,7 +77,9 @@ class PawsApp(App):
         self.underlay.start()
         self.app_resume_signal.subscribe(self, lambda app: self.force_full_repaint())
         self.run_worker(self._remember_good_config, thread=True, group="known-good")
-        self.run_worker(self._add_missing_games, thread=True, group="bg-add")
+        # a daemon thread, not a worker: asyncio waits for worker threads on exit, and these lookups can take minutes,
+        # which left quit hanging until ctrl+c. everything here is saved as it goes, so dying mid-way loses nothing
+        threading.Thread(target=self._add_missing_games, name="paws-bg-add", daemon=True).start()
         self.push_screen(HomeScreen())
         self._fit_to_height(self.size.height)
 
@@ -150,7 +156,7 @@ class PawsApp(App):
             added = run()
         except Exception:  # the next start tries again, and this must never get in the way of the menu
             return
-        if added:
+        if added and self.is_running:
             self.call_from_thread(self.tell, f"added {len(added)} missing game(s)", ", ".join(added))
 
     def on_unmount(self):
@@ -242,6 +248,10 @@ class PawsApp(App):
     async def on_event(self, event: events.Event):
         if isinstance(event, events.Paste) and not event.is_forwarded:
             can_take = isinstance(self.screen, DropScreen) or not isinstance(self.screen, ModalScreen)
+            if can_take and not isinstance(self.focused, TextArea) and share.find_code(event.text):
+                event.stop()
+                self.run_worker(lambda: self.take_ticket_code(event.text), thread=True, group="take-ticket")
+                return
             take_ticket = getattr(self.screen, "take_pasted", None)
             if take_ticket is not None and not isinstance(self.focused, TextArea) and take_ticket(event.text):
                 event.stop()
@@ -253,6 +263,10 @@ class PawsApp(App):
                 await self.confirm_build_install(build)
                 return
             listed = drop.list_file_text(event.text)
+            if listed is not None and can_take and share.find_code(listed):  # a code saved in a .txt, dropped
+                event.stop()
+                self.run_worker(lambda: self.take_ticket_code(listed), thread=True, group="take-ticket")
+                return
             if listed is not None and can_take:
                 parsed = textdrop.parse_text(listed)
                 if parsed.items or parsed.kind == "depots":
@@ -277,6 +291,22 @@ class PawsApp(App):
                     await self.take_text(parsed)
                     return
         await super().on_event(event)
+
+    def take_ticket_code(self, text):
+        """on a worker: adding the game asks the store"""
+        missing = settings.missing_reason()
+        try:
+            if missing:
+                raise ValueError(missing)
+            saved = share.take_code(text)
+        except (ValueError, OSError) as error:
+            self.call_from_thread(self.tell, "couldn't take those tickets", str(error), "error")
+            return
+        names = ", ".join(t.filename for t in saved)
+        self.call_from_thread(self.tell, f"saved {len(saved)} shared ticket(s)", names)
+        redraw = getattr(self.screen, "_draw_tickets", None)
+        if redraw is not None:
+            self.call_from_thread(redraw)
 
     async def _import(self, work, what):
         """a drop can't reach the hidden menus' work either: same error instead of writing to a config nothing reads"""
@@ -354,8 +384,15 @@ class PawsApp(App):
 
 
 def main() -> int:
-    PawsApp().run()
-    return 0
+    app = PawsApp()
+    app.run()
+    # the terminal is back to normal by now. leaving through python would still sit waiting on any lookup that's in
+    # flight, and every write those make is atomic, so leave now
+    if threading.active_count() > 1 and not os.environ.get("PAWS_HOLD"):
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os._exit(app.return_code or 0)
+    return app.return_code or 0
 
 
 if __name__ == "__main__":
