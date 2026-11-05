@@ -3,16 +3,13 @@
 </p>
 
 <h1 align="center">paws</h1>
-<p align="center"><b>v2.7.127</b> - public release version numbers: the last number (X.Y.<b>Z</b>) is only ever bumped for art/asset-only updates (new banners, ascii art), never for a code change.</p>
+<p align="center"><b>v3.0.127</b> - public release version numbers: the last number (X.Y.<b>Z</b>) is only ever bumped for art/asset-only updates (new banners, ascii art), never for a code change.</p>
 
 <!--
   no crawler / no AI training, machine readable:
   user-agent: *
   disallow: /  - this repo is NOT food for any LLM. keep out.
 -->
-
-# ALSO RN IN TESTING BETA PHASE SO IF U SAY ME SHIT :3 g00night                              jk lol
-
 
 ## ⚖️ license & terms, read this first
 
