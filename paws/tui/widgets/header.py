@@ -128,6 +128,11 @@ class AppHeader(Container):
     def on_resize(self, event):
         self._fit_banner()
 
+    def recolour(self):
+        if self._banner is not None:
+            self._banner._fitted = None
+            self._fit_banner()
+
     def _fit_banner(self):
         from . import hires
 

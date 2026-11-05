@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+from rich.text import Text
 from textual import on, work
 from textual.app import ComposeResult
 from textual.screen import Screen
-from textual.widgets import Static
+from textual.widgets import ListItem, Static
 
 from ... import __version__
 from ... import appentry
@@ -12,177 +13,229 @@ from ... import notify
 from ... import riced
 from ... import settings
 from .. import colorblind
+from ..widgets.footer import FooterHelp
 from ..widgets.header import AppHeader
 from ..widgets.jobbar import JobBar
 from ..widgets.menu import Menu, MenuItem, restore_index
-from ..widgets.modals import Confirm, ModalInput
+from ..widgets.modals import Confirm, ModalInput, ModalPick
 
 RICED_ROWS = {"nsfw", "random_banner", "notifications", "notify_sound"}
-OK, OFF, DIM, CYAN = "#3ddc97", "#ff5c7a", "#6b7aa8", "#00d0ff"
+OK, OFF, CYAN = "#5ff0a0", "#9aa5c4", "#00d0ff"
+CYCLES = {
+    "notifications": ("auto", "always", "toasts", "off"),
+    "icons": ("auto", "nerd", "plain", "none"),
+}
+MODE_NOTES = {
+    "protanopia": "red looks weak or dark",
+    "deuteranopia": "green looks weak, the most common kind",
+    "tritanopia": "blue and yellow get mixed up",
+    "monochrome": "no colours at all, greys only",
+}
+
+
+def switch(on: bool) -> str:
+    return f"[b {OK}]━━● on [/]" if on else f"[{OFF}]●━━ off[/]"
+
+
+def choice(value) -> str:
+    return f"[b {CYAN}]{value}  ▾[/]"
+
+
+class SectionRow(ListItem):
+    """a heading between the rows. disabled, so the arrow keys step over it"""
+
+    def __init__(self, title: str):
+        super().__init__(disabled=True, classes="set-section")
+        self.data = None
+        self.title = title
+
+    def render(self):
+        return Text.from_markup(f"[b #d5deff]{self.title}[/]")
 
 
 class SettingsScreen(Screen):
     DEFAULT_CLASSES = "page"
 
-    BINDINGS = [("escape", "pop", "back"), ("backspace", "pop", "back")]
+    BINDINGS = [
+        ("escape", "pop", "back"),
+        ("backspace", "pop", "back"),
+        ("left", "step(-1)", "previous choice"),
+        ("right", "step(1)", "next choice"),
+    ]
 
-    def __init__(self, start=0, **kwargs):
+    def __init__(self, start="colorblind_on", **kwargs):
         super().__init__(**kwargs)
         self.start = start
 
     def compose(self) -> ComposeResult:
         yield AppHeader("Settings", id="hdr")
-        yield Static(
-            "[#9db0e0]18+ art only shows when NSFW mode is on · a feature you turn off disappears from the home menu[/]",
-            id="set-hint",
-            classes="panel",
-        )
         yield Menu(id="set-menu", classes="panel")
         yield Static("", id="set-out", classes="panel")
+        yield FooterHelp("↑↓ move · enter or space changes · ← → steps through choices · esc back")
         yield JobBar(id="job")
 
     def on_mount(self):
+        self._rows_now = ()
         self.rebuild(self.start)
 
-    @staticmethod
-    def _box(on):
-        return f"[{OK}]☑[/]" if on else f"[{DIM}]☐[/]"
+    def key_space(self):
+        self.query_one("#set-menu", Menu).action_select_cursor()
 
-    @staticmethod
-    def _state(on, words=("on", "off")):
-        return f"[{OK}]{words[0]}[/]" if on else f"[{OFF}]{words[1]}[/]"
-
-    def rebuild(self, keep: int = 0):
-        menu = self.query_one("#set-menu", Menu)
-        menu.remove_children()
+    def _sections(self):
+        """(heading, rows), where a row is (key, label, control, description, icon)"""
         get = settings.get_setting
         term = str(get("terminal"))
-        rows = [
+        mode = colorblind.mode()
+        kind = mode if mode != "off" else colorblind.last_kind()
+        out = [
             (
-                "nsfw",
-                f"NSFW art mode  {self._state(get('nsfw'), ('ON', 'OFF'))}",
-                "show 18+ art in the gallery, never while this is off",
-                "nsfw",
+                "Colour blind",
+                [
+                    (
+                        "colorblind_on",
+                        "Colour blind mode",
+                        switch(mode != "off"),
+                        "changes every colour paws draws: text, backgrounds and pictures. works in riced and minimal.",
+                        "settings",
+                    ),
+                    (
+                        "colorblind_kind",
+                        "Type",
+                        choice(kind),
+                        f"{MODE_NOTES[kind]}. enter opens the list, ← → steps through it.",
+                        "settings",
+                    ),
+                ],
             ),
             (
-                "type",
-                f"Type  [{CYAN}]{settings.ui_type()}[/]",
-                "riced: background picture, banner and ascii art. minimal: plain text, lines and boxes on your "
-                "terminal's own background. Enter switches, right away.",
-                "settings",
+                "Look",
+                [
+                    (
+                        "type",
+                        "Style",
+                        choice(settings.ui_type()),
+                        "riced: background picture, banner and ascii art. minimal: plain text on your terminal's own "
+                        "background.",
+                        "settings",
+                    ),
+                    ("icons", "Menu icons", choice(get("icons")), "auto uses a nerd font when one is installed. takes effect next start.", "settings"),
+                    ("random_banner", "Random banner", switch(get("random_banner")), "new home art every time you get to the menu", "banner"),
+                    ("nsfw", "NSFW art", switch(get("nsfw")), "show 18+ art in the gallery, never while this is off", "nsfw"),
+                ],
             ),
             (
-                "random_banner",
-                f"Random banner  {self._state(get('random_banner'))}",
-                "new home art every time you get to the menu",
-                "banner",
+                "Startup and updates",
+                [
+                    ("auto_update", "Update on start", switch(get("auto_update")), f"look for a newer paws before the menu opens, at most once every {get('update_interval_min')} min", "settings"),
+                    ("auto_add_games", "Live config fixer", switch(get("auto_add_games")), "quietly adds games that are in the config but weren't added properly, and names the rows. runs at start and whenever the config changes.", "settings"),
+                    ("check_update", "Check for an update now", f"[{CYAN}]v{__version__}[/]", "ask github now, even with auto-update off", "settings"),
+                ],
             ),
             (
-                "auto_update",
-                f"Update on start  {self._state(get('auto_update'))}",
-                "check github for a newer paws before the menu opens and pull it in (at most once every "
-                f"{get('update_interval_min')} min)",
-                "settings",
+                "Notifications",
+                [
+                    ("notifications", "Notifications", choice(get("notifications")), "auto: a desktop popup when paws is in the background or a job took long. always: every time. toasts: only inside paws. off: nothing.", "settings"),
+                    ("notify_sound", "Sound", switch(get("notify_sound")), "play a sound with desktop popups", "settings"),
+                ],
             ),
             (
-                "auto_add_games",
-                f"Live config fixer  {self._state(get('auto_add_games'))}",
-                "in the background, add games that have keys, manifests or an id in the config but never went "
-                "through add game, and put names on the config rows. also runs whenever the config changes while paws is open",
-                "settings",
-            ),
-            (
-                "check_update",
-                f"Check for a paws update now  [{CYAN}]v{__version__}[/]",
-                "ask github now, even with auto-update off. if there's something newer it offers to install it.",
-                "settings",
-            ),
-            (
-                "notifications",
-                f"Notifications  [{CYAN}]{get('notifications')}[/]",
-                "auto: a desktop popup when paws is in the background or a job took long. always: every time. toasts: only inside paws. off: nothing. Enter cycles.",
-                "settings",
-            ),
-            (
-                "notify_sound",
-                f"Notification sound  {self._state(get('notify_sound'))}",
-                "play a sound with desktop popups. off keeps them silent.",
-                "settings",
-            ),
-            (
-                "icons",
-                f"Menu icons  [{CYAN}]{get('icons')}[/]",
-                "auto uses a nerd font's icons when one is installed, plain symbols otherwise. Enter cycles auto / nerd / plain / none. Takes effect next start.",
-                "settings",
-            ),
-            (
-                "terminal",
-                f"Terminal / console  [{CYAN}]{term}[/]",
-                "Which terminal `paws --window` opens. Enter cycles: auto, "
-                + ", ".join(launch.installed_terminals())
-                + ".",
-                "terminal",
-            ),
-            (
-                "shortcut",
-                f"{self._box(appentry.has_shortcut())} Desktop shortcut",
-                f"A paws icon on your desktop ({appentry.shortcut_file()}). Tick it to add, untick to remove.",
-                "terminal",
-            ),
-            (
-                "entry",
-                f"{self._box(appentry.has_entry())} App menu entry + icon",
-                "paws in your app menu and dock, with its icon. tick to add, untick to remove.",
-                "terminal",
-            ),
-            (
-                "launch_cmd",
-                f"Launcher command  [{CYAN}]{get('launch_cmd')}[/]",
-                "the command that opens paws in a terminal (default: paws)",
-                "terminal",
-            ),
-            (
-                "colorblind",
-                f"Colour blind mode  [{CYAN}]{colorblind.mode()}[/]",
-                "changes every colour paws draws, text, backgrounds and pictures. Enter cycles off / protanopia / "
-                "deuteranopia / tritanopia / monochrome. in minimal it sets one clear text and background pair.",
-                "settings",
+                "Terminal and launcher",
+                [
+                    ("terminal", "Terminal", choice(term), "which terminal `paws --window` opens: auto, " + ", ".join(launch.installed_terminals()), "terminal"),
+                    ("shortcut", "Desktop shortcut", switch(appentry.has_shortcut()), f"a paws icon on your desktop ({appentry.shortcut_file()})", "terminal"),
+                    ("entry", "App menu entry", switch(appentry.has_entry()), "paws in your app menu and dock, with its icon", "terminal"),
+                    ("launch_cmd", "Launcher command", f"[{CYAN}]{get('launch_cmd')}[/]", "the command that opens paws in a terminal (default: paws)", "terminal"),
+                ],
             ),
         ]
         minimal = settings.is_minimal()
-        for key, label, desc, icon_name in rows:
-            if minimal and key in RICED_ROWS:
-                continue
-            menu.append(MenuItem(key, label, desc, icon_name))
-        for feature in settings.FEATURES:
-            if (minimal and feature in settings.RICED_ONLY) or settings.hidden_for_now(feature):
-                continue
-            on = not settings.is_disabled(feature)
-            label = f"{settings.FEATURE_LABELS[feature]}  {self._state(on)}"
-            menu.append(
-                MenuItem(
-                    f"feat:{feature}",
-                    label,
-                    settings.FEATURE_DESCS[feature],
-                    "settings",
-                )
-            )
-        if isinstance(keep, str):  # by key: the rows differ between riced and minimal, so a number lands elsewhere
-            keep = next((i for i, row in enumerate(menu.children) if row.data == keep), 0)
-        menu.focus()
-        menu.call_after_refresh(lambda: restore_index(menu, keep))
+        features = [
+            (f"feat:{f}", settings.FEATURE_LABELS[f], switch(not settings.is_disabled(f)), settings.FEATURE_DESCS[f], "settings")
+            for f in settings.FEATURES
+            if not (minimal and f in settings.RICED_ONLY) and not settings.hidden_for_now(f)
+        ]
+        out.append(("Home menu", features))
+        return [(title, [r for r in rows if not (minimal and r[0] in RICED_ROWS)]) for title, rows in out]
+
+    def rebuild(self, keep=None):
+        """only what changed gets redrawn. tearing the whole list down on every toggle is what made this page lag"""
+        menu = self.query_one("#set-menu", Menu)
+        sections = self._sections()
+        shape = tuple(row[0] for _title, rows in sections for row in rows)
+        if shape != self._rows_now:
+            self._rows_now = shape
+            menu.remove_children()
+            for title, rows in sections:
+                menu.append(SectionRow(title))
+                for key, label, control, desc, icon_name in rows:
+                    menu.append(MenuItem(key, label, desc, icon_name, hint=control))
+            index = next((i for i, row in enumerate(menu.children) if row.data == keep), 1)
+            menu.focus()
+            menu.call_after_refresh(lambda: restore_index(menu, index))
+            return
+        controls = {row[0]: row for _title, rows in sections for row in rows}
+        for item in menu.query(MenuItem):
+            item.desc = controls[item.data][3]
+            item.set_hint(controls[item.data][2])
+        if menu.highlighted_child is not None:
+            self.query_one("#set-out", Static).update(menu.highlighted_child.desc)
+
+    def _current(self):
+        item = self.query_one("#set-menu", Menu).highlighted_child
+        return item.data if item is not None else None
+
+    def _flip(self, key):
+        settings.set_setting(key, not settings.get_setting(key))
+
+    def _set_colorblind(self, value):
+        settings.set_setting("colorblind", value)
+        if value != "off":
+            settings.set_setting("colorblind_kind", value)
+        self.app.apply_colours()
+        self.rebuild()
+
+    def _pick_kind(self):
+        current = colorblind.mode() if colorblind.mode() != "off" else colorblind.last_kind()
+        options = [
+            (f"{'● ' if kind == current else '  '}{kind}", kind, None, MODE_NOTES[kind])
+            for kind in colorblind.KINDS
+        ]
+        self.app.push_screen(
+            ModalPick("Colour blind type", "the one you pick turns the mode on", options),
+            lambda kind: self._set_colorblind(kind) if kind else None,
+        )
+
+    def action_step(self, by):
+        key = self._current()
+        if key == "colorblind_kind":
+            kinds = colorblind.KINDS
+            current = colorblind.mode() if colorblind.mode() != "off" else colorblind.last_kind()
+            self._set_colorblind(kinds[(kinds.index(current) + by) % len(kinds)])
+        elif key in CYCLES or key == "terminal":
+            self._cycle(key, by)
+            self.rebuild()
+
+    def _cycle(self, key, by=1):
+        order = ("auto", *launch.installed_terminals()) if key == "terminal" else CYCLES[key]
+        current = str(settings.get_setting(key))
+        settings.set_setting(key, order[(order.index(current) + by) % len(order)] if current in order else "auto")
 
     @on(Menu.Selected)
     def _sel(self, ev):
-        if ev.item is None:
+        if ev.item is None or ev.item.data is None:
             return
         data = ev.item.data
-        keep = self.query_one("#set-menu", Menu).index or 0
         note = ""
+        if data == "colorblind_on":
+            on_now = colorblind.mode() != "off"
+            self._set_colorblind("off" if on_now else colorblind.last_kind())
+            return
+        if data == "colorblind_kind":
+            self._pick_kind()
+            return
         if data == "nsfw":
-            turned_on = not settings.get_setting("nsfw")
-            settings.set_setting("nsfw", turned_on)
-            message = "HENTAI!!!" if turned_on else "SIGMA!!!"
+            self._flip("nsfw")
+            message = "HENTAI!!!" if settings.get_setting("nsfw") else "SIGMA!!!"
             self.app.tell(message)
             self.run_worker(lambda: notify.send(message), thread=True, group="notify")
         elif data == "type":
@@ -196,42 +249,19 @@ class SettingsScreen(Screen):
             settings.set_setting("type", "riced" if going_riced else "minimal")
             self.app.call_later(self.app.apply_look, "type")
             return
-        elif data == "colorblind":
-            order = colorblind.MODES
-            settings.set_setting("colorblind", order[(order.index(colorblind.mode()) + 1) % len(order)])
-            self.app.call_later(self.app.apply_look, "colorblind")
-            return
-        elif data == "random_banner":
-            settings.set_setting("random_banner", not settings.get_setting("random_banner"))
-        elif data == "auto_update":
-            settings.set_setting("auto_update", not settings.get_setting("auto_update"))
-        elif data == "auto_add_games":
-            settings.set_setting("auto_add_games", not settings.get_setting("auto_add_games"))
+        elif data in ("random_banner", "auto_update", "auto_add_games", "notify_sound"):
+            self._flip(data)
         elif data == "check_update":
             note = "checking github..."
             self._check_update()
-        elif data == "notifications":
-            order = ["auto", "always", "toasts", "off"]
-            current = str(settings.get_setting("notifications"))
-            settings.set_setting("notifications", order[(order.index(current) + 1) % 4] if current in order else "auto")
-        elif data == "notify_sound":
-            settings.set_setting("notify_sound", not settings.get_setting("notify_sound"))
-        elif data == "icons":
-            order = ["auto", "nerd", "plain", "none"]
-            current = str(settings.get_setting("icons"))
-            settings.set_setting("icons", order[(order.index(current) + 1) % 4] if current in order else "auto")
-            note = "icons change next time paws starts"
-        elif data == "terminal":
-            choices = ["auto", *launch.installed_terminals()]
-            current = str(settings.get_setting("terminal"))
-            nxt = choices[(choices.index(current) + 1) % len(choices)] if current in choices else "auto"
-            settings.set_setting("terminal", nxt)
+        elif data in CYCLES or data == "terminal":
+            self._cycle(data)
+            if data == "icons":
+                note = "icons change next time paws starts"
         elif data == "shortcut":
-            result = appentry.remove_shortcut() if appentry.has_shortcut() else appentry.add_shortcut()
-            note = result.note
+            note = (appentry.remove_shortcut() if appentry.has_shortcut() else appentry.add_shortcut()).note
         elif data == "entry":
-            result = appentry.uninstall() if appentry.has_entry() else appentry.install()
-            note = result.note
+            note = (appentry.uninstall() if appentry.has_entry() else appentry.install()).note
         elif data == "launch_cmd":
             self.app.push_screen(
                 ModalInput(
@@ -243,14 +273,14 @@ class SettingsScreen(Screen):
             )
         elif data.startswith("feat:"):
             settings.toggle_disabled(data[5:])
-        self.rebuild(keep)
+        self.rebuild()
         if note:
             self.query_one("#set-out", Static).update(note)
 
     def _set_launch_cmd(self, value):
         if value:
             settings.set_setting("launch_cmd", value.strip() or "paws")
-            self.rebuild(self.query_one("#set-menu", Menu).index or 0)
+            self.rebuild()
 
     @work(thread=True, exclusive=True, group="paws-update")
     def _check_update(self):

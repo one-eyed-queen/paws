@@ -9,7 +9,8 @@ from textual.filter import LineFilter
 
 from .. import settings
 
-MODES = ("off", "protanopia", "deuteranopia", "tritanopia", "monochrome")
+KINDS = ("protanopia", "deuteranopia", "tritanopia", "monochrome")
+MODES = ("off", *KINDS)
 PLACEHOLDER = "\U0010eeee"  # kitty image cells: their colour IS the image id, so it must never change
 
 # machado et al. 2009, severity 1.0: what each kind of vision sees
@@ -40,6 +41,12 @@ def _luma(rgb) -> float:
 def mode() -> str:
     value = str(settings.get_setting("colorblind"))
     return value if value in MODES else "off"
+
+
+def last_kind() -> str:
+    """what the switch turns back on"""
+    value = str(settings.get_setting("colorblind_kind"))
+    return value if value in KINDS else "deuteranopia"
 
 
 @lru_cache(maxsize=None)

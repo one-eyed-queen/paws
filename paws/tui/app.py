@@ -82,9 +82,17 @@ class PawsApp(App):
         # which left quit hanging until ctrl+c. everything here is saved as it goes, so dying mid-way loses nothing
         self._fixer_busy = False
         self._start_fixer()
+        self.run_doctor()
         self.set_interval(3.0, self._watch_config)
         self.push_screen(HomeScreen())
         self._fit_to_height(self.size.height)
+        self.call_after_refresh(self._drop_splash)
+
+    def _drop_splash(self):
+        if os.name != "nt":
+            from ..update.glass import remove_picture
+
+            self.underlay._send(remove_picture())
 
     def _set_look(self):
         minimal = settings.is_minimal()
@@ -132,6 +140,28 @@ class PawsApp(App):
 
         return super().call_from_thread(safe)
 
+    def apply_colours(self):
+        """a colour blind mode, in place: same screens, same cursor, only the colours and pictures change"""
+        from .widgets import backdrop as backdrops
+
+        self._set_look()
+        self.underlay.stop()
+        self.underlay = Underlay(self)
+        self.underlay.start()
+        backdrops.forget_colours()
+        for screen in self.screen_stack:
+            screen._base_rgb = None
+            for widget in [screen, *screen.walk_children()]:
+                recolour = getattr(widget, "recolour", None)
+                if recolour is not None:
+                    recolour()
+                kept = getattr(widget, "backdrop", None)
+                if kept is not None:
+                    kept._size = None
+                widget._styles_cache.clear()
+                widget.refresh()
+        self.force_full_repaint()
+
     async def apply_look(self, settings_row=0):
         """riced <-> minimal without a restart: theme, background picture, icons, then every open screen is rebuilt"""
         from .screens.settings import SettingsScreen
@@ -143,11 +173,12 @@ class PawsApp(App):
         self.underlay = Underlay(self)
         self.underlay.start()
         stack = [type(s) for s in self.screen_stack[1:] if not isinstance(s, ModalScreen)]
-        for _ in range(len(self.screen_stack) - 1):
-            await self.pop_screen()
-        await self.push_screen(HomeScreen())
-        if SettingsScreen in stack:
-            await self.push_screen(SettingsScreen(settings_row))
+        with self.batch_update():  # all in one paint, the menu must not flash on the way back to settings
+            for _ in range(len(self.screen_stack) - 1):
+                await self.pop_screen()
+            await self.push_screen(HomeScreen())
+            if SettingsScreen in stack:
+                await self.push_screen(SettingsScreen(settings_row))
         self.force_full_repaint()
 
     def _remember_good_config(self):
@@ -157,6 +188,29 @@ class PawsApp(App):
             repair.refresh_known_good()
         except Exception:
             pass
+
+    doctor_report = None
+    doctor_at = 0.0
+    doctor_busy = False
+
+    def run_doctor(self):
+        """once when paws opens, then only when asked: the status page just shows the last answer"""
+        if self.doctor_busy:
+            return
+        self.doctor_busy = True
+        threading.Thread(target=self._doctor_worker, name="paws-doctor", daemon=True).start()
+
+    def _doctor_worker(self):
+        from .. import doctor
+
+        report = doctor.Doctor()
+        self.doctor_report = report  # rows show up on the page as they come in
+        try:
+            for _ in report.stream():
+                pass
+            self.doctor_at = time.time()
+        finally:
+            self.doctor_busy = False
 
     def _config_stamp(self):
         from ..config.where import find_config

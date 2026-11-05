@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sys
 
 NAME = "menu"
@@ -16,10 +17,25 @@ def run(args) -> int:
             file=sys.stderr,
         )
         return 1
-    from ... import update
+    if os.name == "nt":
+        from ... import update
+        from ...tui import main as tui_main
 
-    update.run(sys.argv[1:])
+        update.run(sys.argv[1:])
+        return tui_main()
+    from ...update.glass import GlassSplash
 
-    from ...tui import main as tui_main  # the slow import, after the splash so that's on screen right away
+    splash = GlassSplash()  # up before anything slow, down once the menu can draw: no blank terminal in between
+    splash.header()
+    try:
+        from ... import update
 
+        update.run(sys.argv[1:], splash)
+        with splash.working("", "loading"):
+            from ...tui import main as tui_main
+    except BaseException:
+        splash.close()
+        raise
+    splash.status = "loading"
+    splash.hand_over()
     return tui_main()

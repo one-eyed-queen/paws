@@ -166,6 +166,13 @@ def _paint_strip(strip, backdrop, base, x0, y, cols, rows):
     return Strip(segs, strip.cell_length)
 
 
+def forget_colours():
+    _MEMO.clear()
+    _CLEAR_MEMO.clear()
+    _blank_segment.cache_clear()
+    _tint.cache_clear()
+
+
 def panel_backdrop(widget, strength: float = STRENGTH, path: Path = BG_IMAGE, blur: float = 0.0) -> Backdrop | None:
     bd = Backdrop(path, base=tuple(widget.background_colors[1].rgb), strength=strength, blur=blur)
     return bd if bd.load() else None

@@ -129,7 +129,11 @@ class ModalPick(ModalScreen[str | None]):
     usable option. keeping them apart matters - a description is not a reason to grey something out.
     """
 
-    BINDINGS = [Binding("escape", "cancel", "cancel")]
+    BINDINGS = [
+        Binding("escape", "cancel", "cancel"),
+        Binding("up", "app.focus_previous", "up", show=False),
+        Binding("down", "app.focus_next", "down", show=False),
+    ]
 
     def __init__(self, title: str, prompt: str = "", options=(), **kwargs):
         super().__init__(**kwargs)
@@ -158,7 +162,9 @@ class ModalPick(ModalScreen[str | None]):
         return out
 
     def on_mount(self):
-        first = next((b for b in self.query(Button) if not b.disabled and (b.id or "").startswith("mpkopt-")), None)
+        options = [b for b in self.query(Button) if not b.disabled and (b.id or "").startswith("mpkopt-")]
+        marked = [b for b in options if str(b.label).startswith("● ")]  # the current one, if the list has marked it
+        first = next(iter(marked or options), None)
         (first or self.query_one("#mpk-cancel", Button)).focus()
 
     @on(Button.Pressed)

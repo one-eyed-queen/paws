@@ -219,12 +219,6 @@ BACKENDS = {
 }
 
 
-def backends_for(is_windows: bool) -> tuple[str, ...]:
-    """the builds that can run on this system"""
-    want = "windows" if is_windows else "linux"
-    return tuple(k for k, v in BACKENDS.items() if v["os"] == want)
-
-
 def describe(kind: str) -> str:
     """'HubCapTools (SLSsteam build, closed source)' - for places that need to say what a name means"""
     meta = BACKENDS.get(kind)

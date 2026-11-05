@@ -1,12 +1,15 @@
 from __future__ import annotations
 
-from textual import on, work
+import time
+
+from rich.markup import escape
+from textual import on
 from textual.app import ComposeResult
 from textual.containers import Horizontal, VerticalScroll
 from textual.screen import Screen
 from textual.widgets import Button, Static
 
-from ... import doctor, repair
+from ... import repair
 from ..widgets.modals import Confirm
 from ..widgets.header import AppHeader
 from ..widgets.jobbar import JobBar
@@ -19,7 +22,8 @@ class DoctorScreen(Screen):
 
     def compose(self) -> ComposeResult:
         yield AppHeader("Status / Doctor", id="hdr")
-        yield VerticalScroll(id="doctor-scroll")
+        with VerticalScroll(id="doctor-scroll"):
+            yield Static("", id="doctor-body")
         yield JobBar(id="job")
         with Horizontal():
             yield Button("Re-run", id="btn-redoc")
@@ -29,7 +33,8 @@ class DoctorScreen(Screen):
             yield Button("Back", id="btn-back")
 
     def on_mount(self):
-        self.run_checks()
+        self._draw()
+        self.set_interval(0.25, self._draw)
 
     @on(Button.Pressed, "#btn-redoc")
     def _rerun(self):
@@ -73,24 +78,30 @@ class DoctorScreen(Screen):
         self.action_pop()
 
     def run_checks(self):
-        body = self.query_one("#doctor-scroll", VerticalScroll)
-        body.remove_children()
-        body.mount(Static("[#9db0e0]checking...[/]"))
-        self._run_checks()
+        self.app.run_doctor()
+        self._drawn = -1
 
-    @work(thread=True, exclusive=True, group="doctor")
-    def _run_checks(self):
-        report = doctor.run()
-        self.app.call_from_thread(self._show, report)
+    _drawn = -1
 
-    def _show(self, report):
-        body = self.query_one("#doctor-scroll", VerticalScroll)
-        body.remove_children()
-        for check in report.checks:
-            sym = {"ok": "[b #5ff0a0]OK[/]", "warn": "[b #ffd75f]WARN[/]", "error": "[b #ff7a8a]FAIL[/]"}.get(
-                check.severity, " "
-            )
-            body.mount(Static(f"{sym} [b]{check.label}[/b]: [#d5deff]{check.detail}[/]"))
+    def _draw(self):
+        """shows whatever the app already knows, so opening this page does no checking of its own"""
+        report = self.app.doctor_report
+        busy = self.app.doctor_busy
+        count = len(report.checks) if report else 0
+        if (count, busy) == self._drawn:
+            return
+        self._drawn = (count, busy)
+        lines = [self._row(check) for check in report.checks] if report else []
+        if busy:
+            lines.append("[#d5deff]checking...[/]")
+        elif self.app.doctor_at:
+            lines.append(f"[#9aa5c4]checked {time.strftime('%H:%M:%S', time.localtime(self.app.doctor_at))}, Re-run checks again[/]")
+        self.query_one("#doctor-body", Static).update("\n".join(lines))
+
+    @staticmethod
+    def _row(check):
+        sym = {"ok": "[b #5ff0a0]OK[/]", "warn": "[b #ffd75f]WARN[/]", "error": "[b #ff7a8a]FAIL[/]"}.get(check.severity, " ")
+        return f"{sym} [b]{escape(check.label)}[/b]: [#d5deff]{escape(check.detail)}[/]"
 
     def action_pop(self):
         self.app.pop_screen()

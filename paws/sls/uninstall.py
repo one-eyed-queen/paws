@@ -171,9 +171,3 @@ def uninstall(sls: SlsInstall | None, purge: bool = False) -> dict:
     if purge:
         report["config_backup"] = purge_config()
     return report
-
-
-def uninstall_or_raise(sls: SlsInstall | None) -> bool:
-    """kept for the windows path, which still reports a bare success/failure."""
-    result = uninstall(sls)
-    return bool(result["removed"])

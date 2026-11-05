@@ -128,5 +128,3 @@ FEATURES: tuple[Feature, ...] = (
         toggleable=False,
     ),
 )
-
-BY_KEY: dict[str, Feature] = {f.key: f for f in FEATURES}

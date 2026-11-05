@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 import sys
-import time
 from typing import Callable
 
 from .. import settings
@@ -11,7 +10,6 @@ from .splash import Splash
 from .status import Status, apply, check, record
 
 JUST_UPDATED = "PAWS_JUST_UPDATED"
-HOLD = 0.7  # long enough to read the result
 
 
 def enabled() -> bool:
@@ -45,29 +43,20 @@ def run(
     interval = float(settings.get_setting("update_interval_min") or 5)
     if state.fresh(interval):
         return None
-    glass = splash is None
-    if glass and os.name != "nt":
-        from .glass import GlassSplash
-
-        splash = GlassSplash()
-    else:
-        splash = splash or Splash()
-    splash.header()
-    try:
-        with splash.working("UPLINK", "checking for a newer build"):
-            status = check()
-        if status.can_apply:
-            splash.show(status)
-            with splash.working("BUILD", "installing"):
-                status = apply(status)
-        record(status)
+    own = splash is None  # the caller's loading screen stays up afterwards, a plain one is done here
+    splash = splash or Splash()
+    if own:
+        splash.header()
+    with splash.working("UPLINK", "checking for a newer build"):
+        status = check()
+    if status.can_apply:
         splash.show(status)
-        if glass and os.name != "nt":
-            splash.settle()
-            time.sleep(HOLD)
-    finally:
+        with splash.working("BUILD", "installing"):
+            status = apply(status)
+    record(status)
+    splash.show(status)
+    if status.state == "updated":
         if hasattr(splash, "close"):
             splash.close()
-    if status.state == "updated":
         restarter(argv)
     return status

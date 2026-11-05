@@ -25,6 +25,8 @@ class JobBar(Widget):
     JobBar.thin { height: 1; margin: 0 1; }
     """
 
+    _was_busy = False
+
     def on_mount(self):
         self.set_interval(0.1, self._tick)
         self._tick()
@@ -33,9 +35,12 @@ class JobBar(Widget):
         return self.app.job.shown()
 
     def _tick(self):
-        self.display = self._busy() or not settings.is_minimal()
-        if self.display:
+        # redrawing an idle bar ten times a second repainted the whole page under it, all the time
+        busy = self._busy()
+        self.display = busy or not settings.is_minimal()
+        if busy or self._was_busy:
             self.refresh()
+        self._was_busy = busy
 
     def render(self):
         job = self.app.job

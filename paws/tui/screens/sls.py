@@ -12,7 +12,6 @@ from textual.widgets import Button, Static
 from ... import sls as sls_module
 from ...sls.find import find_sls
 from ...steam.find import find_steam
-from ...util import pkgmgr
 from ...windows import IS_WINDOWS
 from ...windows.port import UNDER_CONSTRUCTION, WORKS_WITHOUT_PORT
 from ..widgets.header import AppHeader

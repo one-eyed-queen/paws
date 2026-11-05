@@ -1063,3 +1063,13 @@ MenuItem {
 .-minimal #plug-out, .-minimal #bulk-out, .-minimal #repair-out, .-minimal #remove-out, .-minimal #add-hint {
     border: none;
 }
+
+/* settings: label on the left, control on the right, a heading over each group */
+SectionRow {
+    height: 2;
+    padding: 1 0 0 1;
+    background: transparent;
+}
+#set-menu MenuItem {
+    padding: 0 2 0 2;
+}

@@ -23,7 +23,6 @@ BUILD_HINT = re.compile(r"(?i)slssteam|headcrab|ticketforge|paws")
 BUILD_ARTIFACTS = (".so", ".dll", ".dylib")
 BUILD_DIRS = ("bin/", "tools/", "res/")
 SOURCE_MARKERS = (".cpp", ".c", ".h", ".hpp", "cmakelists.txt", "makefile", ".gitignore", ".github/")
-PACKAGE_MARKERS = (".pkg.tar.zst", ".pkg.tar.xz", ".deb", ".rpm", ".apk")
 
 
 def _listed_by_tool(p: Path) -> list[str]:
@@ -77,11 +76,6 @@ def _is_game_bundle(p: Path) -> bool:
     return any(name.lower().endswith(ACCEPTED) for name in _member_names(p))
 
 
-def _is_package(p: Path) -> bool:
-    """a distro package (an arch .pkg.tar.zst release, a .deb, ...) rather than a depot bundle"""
-    return p.name.lower().endswith(PACKAGE_MARKERS)
-
-
 def _looks_like_build(p: Path) -> bool:
     """only a real build: compiled artefacts or a release layout. never a source tarball, and
     never a bundle of .lua/.key/.manifest (those are game data, not a program)"""
@@ -109,10 +103,6 @@ def _token_to_path(tok):
         if os.name == "nt" and re.match(r"/[A-Za-z]:", tok):  # file:///C:/x -> /C:/x -> C:/x
             tok = tok[1:]
     return Path(tok).expanduser()
-
-
-def _zip_holds_game_files(p):
-    return _is_game_bundle(p)
 
 
 def _zip_looks_like_build(p):

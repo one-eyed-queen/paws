@@ -11,6 +11,7 @@ import sys
 import termios
 import threading
 from contextlib import contextmanager
+from pathlib import Path
 
 from .. import __version__, settings
 from ..paths import DATA_DIR
@@ -94,7 +95,6 @@ class GlassSplash:
         self.status = ""
         self.lock = threading.Lock()
         self.open = False
-        self.painter = None
 
     def _write(self, text: str) -> None:
         sys.__stdout__.write(text)
@@ -105,13 +105,7 @@ class GlassSplash:
         self._write("\x1b[?1049h\x1b[?25l\x1b[2J")
         self._draw()  # the words first, the picture lands behind them a moment later
         if self.graphics:
-            self.painter = threading.Thread(target=self._picture_behind, daemon=True)
-            self.painter.start()
-
-    def settle(self):
-        """don't leave before the picture got there: a fast answer from github would otherwise skip it"""
-        if self.painter is not None:
-            self.painter.join(2.0)
+            threading.Thread(target=self._picture_behind, daemon=True).start()
 
     def _picture_behind(self):
         try:
@@ -119,11 +113,30 @@ class GlassSplash:
         except Exception:  # a missing picture is no reason to hold up the menu
             self.graphics = False
 
-    def _send_picture(self):
-        picture = compose(self.cols, self.rows, (self.x, self.y, self.width, self.height), _cell_pixels())
+    def _picture_bytes(self) -> bytes:
+        """kept on disk per window size, so every start after the first has it instantly"""
+        cell = _cell_pixels()
+        mode = settings.get_setting("colorblind")
+        key = f"{self.cols}x{self.rows}-{cell[0]}x{cell[1]}-{mode}-{BACKGROUND.stat().st_mtime_ns}"
+        path = Path.home() / ".cache" / "paws" / f"splash-{key}.png"
+        try:
+            return path.read_bytes()
+        except OSError:
+            pass
         buffer = io.BytesIO()
-        picture.save(buffer, "PNG", compress_level=1)
-        payload = base64.b64encode(buffer.getvalue()).decode()
+        compose(self.cols, self.rows, (self.x, self.y, self.width, self.height), cell).save(buffer, "PNG", compress_level=1)
+        data = buffer.getvalue()
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            for old in path.parent.glob("splash-*.png"):
+                old.unlink(missing_ok=True)
+            path.write_bytes(data)
+        except OSError:
+            pass
+        return data
+
+    def _send_picture(self):
+        payload = base64.b64encode(self._picture_bytes()).decode()
         chunks = [payload[i : i + 4096] for i in range(0, len(payload), 4096)]
         out = ["\x1b[H"]
         for n, chunk in enumerate(chunks):
@@ -227,3 +240,13 @@ class GlassSplash:
         with self.lock:
             self.open = False
             self._write(f"\x1b_Ga=d,d=I,i={IMAGE_ID},q=2\x1b\\\x1b[?25h\x1b[?1049l")
+
+    def hand_over(self) -> None:
+        """stay on screen, and let the app take this alternate screen over: it paints straight on top, so there's no
+        blank terminal while it starts. the app removes the picture with remove_picture once its first screen is up"""
+        with self.lock:
+            self.open = False
+
+
+def remove_picture() -> str:
+    return f"\x1b_Ga=d,d=I,i={IMAGE_ID},q=2\x1b\\"

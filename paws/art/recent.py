@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import random
+import subprocess
+import sys
 from functools import lru_cache
+from pathlib import Path
 
 from .dirs import user_cfg_dir
 from .library import nsfw_allowed, library
@@ -90,17 +94,72 @@ def alike(a: tuple[str, ...], b: tuple[str, ...]) -> bool:
     return sum(x * y for x, y in zip(sa, sb)) >= SAME_PICTURE
 
 
+CANON_FILE = "art-groups.json"
 _canon_memo: dict = {}
 
 
+def _canon_key(keys) -> str:
+    digest = hashlib.sha1()
+    for name in sorted(keys):
+        digest.update(name.encode())
+        digest.update("\n".join(keys[name]).encode())
+    return digest.hexdigest()
+
+
+def _canon_path():
+    return Path.home() / ".cache" / "paws" / CANON_FILE
+
+
+def _all_keys():
+    return {n: tuple(line.rstrip() for line in a.lines) for n, a in library(nsfw=True).items() if a.lines}
+
+
+def build_groups() -> None:
+    """comparing every picture with every other takes seconds of pure cpu. it runs in its own process, once per art
+    set: on a thread it held up the first paint of the menu, on every single start"""
+    keys = _all_keys()
+    path = _canon_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp = path.with_suffix(".tmp")
+    temp.write_text(json.dumps({"key": _canon_key(keys), "value": _canonical_uncached(keys)}))
+    temp.replace(path)
+
+
+def _build_later() -> None:
+    try:
+        subprocess.Popen(
+            [sys.executable, "-c", "from paws.art.recent import build_groups; build_groups()"],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    except OSError:
+        pass
+
+
+def _groups() -> dict:
+    if "value" in _canon_memo:
+        return _canon_memo["value"]
+    keys = _all_keys()
+    try:
+        saved = json.loads(_canon_path().read_text())
+        if saved.get("key") == _canon_key(keys):
+            _canon_memo["value"] = saved["value"]
+            return saved["value"]
+    except (OSError, ValueError, AttributeError):
+        pass
+    _build_later()
+    return {}  # until that's done every picture counts as its own, which only risks a look-alike showing twice
+
+
 def _canonical(pool):
-    keys = {name: tuple(line.rstrip() for line in pool[name].lines) for name in pool}
-    memo_key = tuple(sorted((n, hash(k)) for n, k in keys.items()))
-    if _canon_memo.get("key") == memo_key:
-        return dict(_canon_memo["value"])
-    value = _canonical_uncached(keys)
-    _canon_memo["key"], _canon_memo["value"] = memo_key, value
-    return dict(value)
+    """name -> the picture standing in for its group, always one that's in this pool"""
+    groups = _groups()
+    first: dict = {}
+    for name in sorted(pool):
+        first.setdefault(groups.get(name, name), name)
+    return {name: first[groups.get(name, name)] for name in pool}
 
 
 def _canonical_uncached(keys):
