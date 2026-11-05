@@ -202,7 +202,7 @@ class ActivationScreen(Screen):
         if sid == "b-act-go":
             appid = self.query_one("#in-aid", Input).value.strip()
             if not appid.isdigit():
-                self.set_out("[red]type the game's AppId (numbers only)[/red]")
+                self.set_out("[#ff7a8a]type the game's AppId (numbers only)[/]")
                 return
             self.set_out("working: making the ticket (this can take a minute)...")
             self._activate(appid, self._kind())
@@ -244,7 +244,7 @@ class ActivationScreen(Screen):
         made_tickets = r["tickets"]
         if r["error"] or not made_tickets:
             why = str(r["error"] or "no tickets came back")
-            self.set_out(f"[red]no tickets for {appid}: {why}[/red]")
+            self.set_out(f"[#ff7a8a]no tickets for {appid}: {why}[/]")
             self.app.tell(f"ticket for {appid} failed", why[:200], "error", took=took)
             self.app.push_screen(
                 ModalInfo(
@@ -304,7 +304,7 @@ class ActivationScreen(Screen):
         try:
             activation.ensure_subscribed(tk.appid)
         except Exception as e:
-            self.set_out(f"[red]couldn't set {tk.appid} up: {e}[/red]")
+            self.set_out(f"[#ff7a8a]couldn't set {tk.appid} up: {e}[/]")
             return
         self.set_out(
             f"{tk.filename} is in the cache and {tk.appid} is in your config: SLSsteam loads the ticket when the game starts"
@@ -336,7 +336,7 @@ class ActivationScreen(Screen):
         try:
             code = share_mod.make_code(appid, only)
         except (ValueError, OSError) as e:
-            self.set_out(f"[red]{e}[/red]")
+            self.set_out(f"[#ff7a8a]{e}[/]")
             return
         body = share_mod.read_code(code)
         count = len(body["tickets"])
@@ -388,13 +388,13 @@ class ActivationScreen(Screen):
         if appid and appid.strip().isdigit():
             self._save_yaml(appid.strip(), self._yaml_waiting)
         elif appid:
-            self.set_out("[red]the AppId is just numbers[/red]")
+            self.set_out("[#ff7a8a]the AppId is just numbers[/]")
 
     def _save_yaml(self, appid, text):
         try:
             tk = tickets.save_ticket(appid, text.strip())
         except ValueError as e:
-            self.set_out(f"[red]{e}[/red]")
+            self.set_out(f"[#ff7a8a]{e}[/]")
             self.app.tell("that isn't a ticket", str(e)[:160], "error")
             return
         self.set_out(f"imported {tk.filename}")
@@ -424,7 +424,7 @@ class ActivationScreen(Screen):
         try:
             s = encode_mod.pack_tickets(self._pack_appid, pw)
         except ValueError as e:
-            self.set_out(f"[red]{e}[/red]")
+            self.set_out(f"[#ff7a8a]{e}[/]")
             return
         ok = clipboard.copy(s)
         self.app.push_screen(ModalInfo(s, title=f"{self._pack_appid}: your backup string (passphrase-locked)"))
@@ -446,7 +446,7 @@ class ActivationScreen(Screen):
         try:
             saved = encode_mod.restore(self._restore_data, pw)
         except ValueError as e:
-            self.set_out(f"[red]{e}[/red]")
+            self.set_out(f"[#ff7a8a]{e}[/]")
             return
         self.set_out("restored " + ", ".join(t.filename for t in saved))
         self._draw_tickets(keep_message=True)
@@ -458,7 +458,7 @@ class ActivationScreen(Screen):
         try:
             text = encode_mod.detail_text(tk.appid)
         except ValueError as e:
-            self.set_out(f"[red]{e}[/red]")
+            self.set_out(f"[#ff7a8a]{e}[/]")
             return
         self.app.push_screen(ModalInfo(text, title=f"{tk.appid}: both tickets (yours)"))
 
@@ -479,7 +479,7 @@ class ActivationScreen(Screen):
                 backup_file(tk.path)
             tickets.delete_ticket(tk)
         except OSError as e:
-            self.set_out(f"[red]couldn't delete: {e}[/red]")
+            self.set_out(f"[#ff7a8a]couldn't delete: {e}[/]")
             return
         self._draw_tickets(keep_message=True)
         self.set_out(f"deleted {tk.filename}")

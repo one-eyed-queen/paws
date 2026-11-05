@@ -6,6 +6,7 @@ from pathlib import Path
 from textual.containers import Container
 from textual.widgets import Static
 
+from .. import colorblind
 from ... import __version__, settings
 from ...paths import DATA_DIR
 from .backdrop import RGB, Backdrop
@@ -120,7 +121,7 @@ class AppHeader(Container):
         if not hires.available() or not BANNER.exists():
             yield PaintedHeader(self._title)
             return
-        self._banner = hires.picture(hires_banner(), id="hdr-banner")
+        self._banner = hires.picture(colorblind.image(hires_banner()), id="hdr-banner")
         yield self._banner
         yield Static(_text(self._title), id="hdr-text", markup=True)
 
@@ -141,7 +142,7 @@ class AppHeader(Container):
                 self._banner.styles.height = rows
                 if getattr(self._banner, "_fitted", None) != key:
                     self._banner._fitted = key
-                    self._banner.image = _boxed(cols, rows, round(cw, 2), round(ch, 2))
+                    self._banner.image = colorblind.image(_boxed(cols, rows, round(cw, 2), round(ch, 2)))
                 self._banner.display = True
                 return
         self._banner.display = False

@@ -249,7 +249,7 @@ class SectionsScreen(Screen):
         try:
             ed.set_value(key, text)
         except ValueError as e:
-            self.say(f"[red]{key} needs {e}[/red]")
+            self.say(f"[#ff7a8a]{key} needs {e}[/]")
             return
         self._changed(key, f"[#87d787]{key}[/] saved: [b]{text.strip() or chr(34) * 2}[/]")
 
@@ -269,7 +269,7 @@ class SectionsScreen(Screen):
         try:
             line = ed.add_row(key, text)
         except ValueError as e:
-            self.say(f"[red]{e}[/red]")
+            self.say(f"[#ff7a8a]{e}[/]")
             return
         self._changed(key, f"added [b]{line.strip()}[/b] to {key}")
 

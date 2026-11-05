@@ -47,7 +47,7 @@ class RepairScreen(Screen):
             t.focus()
             self._describe(0)
         else:
-            self.set_out((message + "\n" if message else "") + "[green]nothing is broken[/green]")
+            self.set_out((message + "\n" if message else "") + "[#5ff0a0]nothing is broken[/]")
 
     def set_out(self, text: str):
         self.query_one("#repair-out", Static).update(text)
@@ -72,7 +72,7 @@ class RepairScreen(Screen):
         if p is None:
             return
         if not p.fixable:
-            self.set_out(f"[yellow]no automatic fix for:[/yellow] {p.title}")
+            self.set_out(f"[#ffd75f]no automatic fix for:[/] {p.title}")
             return
         self.app.push_screen(Confirm(f"{p.title}\n\n{p.fix_note}?"), lambda yes, p=p: self._do([p]) if yes else None)
 
@@ -94,7 +94,7 @@ class RepairScreen(Screen):
         if isinstance(results, Exception):
             self.app.tell("couldn't fix it", str(results), "error")
             return
-        lines = [f"{'[green]fixed[/green]' if ok else '[red]failed[/red]'}: {note}" for _, ok, note in results]
+        lines = [f"{'[#5ff0a0]fixed[/]' if ok else '[#ff7a8a]failed[/]'}: {note}" for _, ok, note in results]
         bad = sum(not ok for _, ok, _ in results)
         self.app.tell(
             f"repaired {len(results) - bad} thing(s)" + (f", {bad} failed" if bad else ""),
@@ -107,7 +107,7 @@ class RepairScreen(Screen):
         left = (
             f"\n\n[#9db0e0]still to look at: {len(self.problems)}[/]"
             if self.problems
-            else "\n\n[green]nothing is broken[/green]"
+            else "\n\n[#5ff0a0]nothing is broken[/]"
         )
         self.set_out("\n".join(lines) + left)
 
@@ -116,7 +116,7 @@ class RepairScreen(Screen):
         config_path = find_config() or default_config_dir() / "config.yaml"
         versions = backup.versions_of(config_path.name)
         if not versions:
-            self.set_out("[yellow]no config.yaml backups yet[/yellow] (they're made the first time paws changes it)")
+            self.set_out("[#ffd75f]no config.yaml backups yet[/] (they're made the first time paws changes it)")
             return
         newest = versions[0]
         self.app.push_screen(
@@ -126,7 +126,7 @@ class RepairScreen(Screen):
 
     def _restore_now(self, newest, config_path):
         ok = backup.restore_backup(newest, config_path)
-        self.scan(f"[green]restored {newest.name}[/green]" if ok else "[red]restore failed[/red]")
+        self.scan(f"[#5ff0a0]restored {newest.name}[/]" if ok else "[#ff7a8a]restore failed[/]")
 
     @on(Button.Pressed, "#b-scan")
     def _rescan(self):

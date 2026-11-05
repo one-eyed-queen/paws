@@ -19,7 +19,7 @@ def add_parser(subparsers, common):
 
 
 def _no_such(name, lib):
-    print(f"no such art: {name}; available: {', '.join(sorted(lib))}", file=sys.stderr)
+    print(f"no such art: {name}; available: {', '.join(sorted(lib, key=lambda k: (not k.isdigit(), int(k) if k.isdigit() else 0, k)))}", file=sys.stderr)
     return 1
 
 

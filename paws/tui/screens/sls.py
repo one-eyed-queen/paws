@@ -296,7 +296,7 @@ class SlsScreen(Screen):
             self.app.force_full_repaint()
         ok = code == 0
         self.app.tell("HeadCrab", "finished" if ok else f"exited with code {code}", "information" if ok else "error")
-        self._say("headcrab finished" if ok else f"[red]headcrab exited with code {code}[/red]")
+        self._say("headcrab finished" if ok else f"[#ff7a8a]headcrab exited with code {code}[/]")
 
     def _do_headcrab_uninstall(self, yes):
         if yes:
@@ -307,7 +307,7 @@ class SlsScreen(Screen):
     def _headcrab_removed(self, result):
         if isinstance(result, Exception):
             self.app.tell("HeadCrab", f"couldn't remove it: {result}", "error")
-            self._say(f"[red]failed:[/red] {result}")
+            self._say(f"[#ff7a8a]failed:[/] {result}")
             return
         self.app.tell("HeadCrab removed", f"{len(result)} item(s)")
         self._say(f"removed {len(result)} thing(s) HeadCrab added")
@@ -340,7 +340,7 @@ class SlsScreen(Screen):
     def _uninstalled(self, result):
         if isinstance(result, Exception):
             self.app.tell("SLSsteam", str(result), "error")
-            self._say(f"[red]failed:[/red] {result}")
+            self._say(f"[#ff7a8a]failed:[/] {result}")
             return
         # removing paws' copy is not the same as removing SLSsteam - a pacman copy and its own
         # launcher can still be sitting there, and "uninstalled" on its own reads as a failure when
@@ -352,11 +352,11 @@ class SlsScreen(Screen):
             body += f"\nconfig kept at {report['config_backup']}"
         body += "\nsteam itself was not touched."
         self.app.tell("SLSsteam removed" if not kept else "SLSsteam partly removed", body)
-        said = "[green]" + ("\n".join(removed) if removed else "nothing was removed") + "[/green]"
+        said = "[#5ff0a0]" + ("\n".join(removed) if removed else "nothing was removed") + "[/]"
         if report.get("config_backup"):
             said += f"\nconfig kept at {report['config_backup']}"
         if kept:
-            said += "\n[yellow]not removed:[/yellow]\n" + "\n".join(kept)
+            said += "\n[#ffd75f]not removed:[/]\n" + "\n".join(kept)
         self._say(said)
 
     def _run(self, label, action):
@@ -366,7 +366,7 @@ class SlsScreen(Screen):
     def _installed(self, result):
         if isinstance(result, Exception):
             self.app.tell("SLSsteam install failed", str(result)[:200], "error")
-            self._say(f"[red]failed:[/red] {result}")
+            self._say(f"[#ff7a8a]failed:[/] {result}")
             return
         # don't claim success on the strength of "it didn't throw" - an install that wrote no
         # library (a source archive, an empty zip) used to report a cheerful "installed" and
@@ -379,7 +379,7 @@ class SlsScreen(Screen):
                 "SLSsteam not installed", "nothing was written - that archive has no built library in it", "error"
             )
             self._say(
-                "[red]nothing was written. that file has no built library in it - it may be source code, not a release.[/red]"
+                "[#ff7a8a]nothing was written. that file has no built library in it - it may be source code, not a release.[/]"
             )
             return
         names = ", ".join(Path(p).name for p in wired) or "nothing (no usable library to inject)"
@@ -390,7 +390,7 @@ class SlsScreen(Screen):
         self.app.tell("SLSsteam installed", body)
         said = f"done -> so={so}, injecting {names}. restart steam for it to take effect."
         if others:
-            said += "\n[yellow]also installed:[/yellow] " + "\n".join(others)
+            said += "\n[#ffd75f]also installed:[/] " + "\n".join(others)
         self._say(said)
 
     def _say(self, text):

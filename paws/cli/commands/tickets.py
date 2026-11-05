@@ -131,6 +131,8 @@ def run(args) -> int:
         print(text)
         return 0
 
+    if not tickets.list_tickets() and not args.json:
+        print("no tickets yet: `paws activate <appid>` makes them")
     for t in tickets.list_tickets():
         print(t.filename, t.steam_id, t.payload[:24])
     return 0

@@ -4,7 +4,6 @@ import asyncio
 import base64
 import itertools
 import os
-import threading
 import time
 import zlib
 from random import randint
@@ -12,13 +11,16 @@ from random import randint
 from textual.screen import ModalScreen
 
 from .. import settings
+from . import colorblind
 
 from .widgets import backdrop, hires, scene
 
 Z_BG = -1_500_000_000
 MAX_SIDE = 1600
-TICK = 0.1
+TICK = 0.05
 REPLACE_EVERY = 4.0
+PAINT_WAIT = 0.3  # a cached picture is ready instantly: give the new screen time to paint first
+SETTLE_AFTER = (0.3, 0.8, 2.0)  # place it again soon after sending, so a placement lost in a screen change comes back
 RESEND_EVERY = 60.0
 
 
@@ -63,13 +65,20 @@ def transmit_sequence(
     return f"\x1b7\x1b[{y + 1};{x + 1}H" + "".join(parts) + "\x1b8"
 
 
-def transmit_png(image_id: int, png: bytes, cols: int, rows: int, *, x: int = 0, y: int = 0, z: int = Z_BG) -> str:
+def transmit_png(
+    image_id: int, png: bytes, cols: int, rows: int, *, x: int = 0, y: int = 0, z: int = Z_BG, place: bool = True
+) -> str:
     payload = base64.b64encode(png).decode()
     chunks = [payload[i : i + 4096] for i in range(0, len(payload), 4096)] or [""]
     parts = []
     for n, chunk in enumerate(chunks):
         more = 1 if n < len(chunks) - 1 else 0
-        ctrl = f"a=T,f=100,i={image_id},p=1,c={cols},r={rows},z={z},C=1,q=2,m={more}" if n == 0 else f"m={more},q=2"
+        if n > 0:
+            ctrl = f"m={more},q=2"
+        elif place:
+            ctrl = f"a=T,f=100,i={image_id},p=1,c={cols},r={rows},z={z},C=1,q=2,m={more}"
+        else:  # kept by the terminal, ready to show the moment a screen wants it
+            ctrl = f"a=t,f=100,i={image_id},q=2,m={more}"
         parts.append(f"\x1b_G{ctrl};{chunk}\x1b\\")
     return f"\x1b7\x1b[{y + 1};{x + 1}H" + "".join(parts) + "\x1b8"
 
@@ -86,6 +95,11 @@ def place_sequence(image_id: int, cols: int, rows: int, *, x: int = 0, y: int = 
     return f"\x1b7\x1b[{y + 1};{x + 1}H\x1b_Ga=p,i={image_id},p=1,c={cols},r={rows},z={z},C=1,q=2\x1b\\\x1b8"
 
 
+def hide_sequence(image_id: int) -> str:
+    """lower case d=i: off the screen, but the terminal keeps the picture"""
+    return f"\x1b_Ga=d,d=i,i={image_id},q=2\x1b\\"
+
+
 def delete_sequence(image_id: int) -> str:
     return f"\x1b_Ga=d,d=I,i={image_id},q=2\x1b\\"
 
@@ -94,9 +108,9 @@ _pictures: dict[tuple, bytes] = {}  # building one is the slow part, and every s
 
 
 def _picture(cols, rows, cell) -> bytes:
-    key = (cols, rows, cell)
+    key = (cols, rows, cell, colorblind.mode())
     if key not in _pictures:
-        png = png_bytes(scene.compose(cols, rows, cell))
+        png = png_bytes(colorblind.image(scene.compose(cols, rows, cell)))
         while len(_pictures) >= 6:
             _pictures.pop(next(iter(_pictures)))
         _pictures[key] = png
@@ -115,7 +129,8 @@ class Underlay:
         self.bg_shown = False
         self.sent_at = 0.0
         self.placed_at = 0.0
-        self._warming = False
+        self._seen, self._seen_at = None, 0.0
+        self._settle: tuple[float, ...] = ()
 
     def start(self):
         if wanted():
@@ -157,42 +172,34 @@ class Underlay:
         scr = self._screen()
         if scr is None:
             self._hide()
-            self._warm()
+            await self._preload()
             return
         size = self.app.size
         cols, rows = self._region(scr, size)
         now = time.monotonic()
+        if scr is not self._seen:
+            self._seen, self._seen_at = scr, now
+        if self.bg_id is None and now - self._seen_at < PAINT_WAIT:
+            return
         if self.bg_size == (cols, rows) and self.bg_id is not None:
             if not self.bg_shown:
                 self._send(place_sequence(self.bg_id, cols, rows))
                 self.bg_shown = True
-                self.placed_at = now
+                self.placed_at = self.sent_at = now
+                self._settle = SETTLE_AFTER
                 self.app.screen.refresh()
                 return
-            if now - self.sent_at > RESEND_EVERY:
+            if self._settle and now - self.sent_at > self._settle[0]:
+                self._settle = self._settle[1:]
+                self.placed_at = now
+                self._send(place_sequence(self.bg_id, cols, rows))
+            elif now - self.sent_at > RESEND_EVERY:
                 await self._apply(cols, rows)
             elif now - self.placed_at > REPLACE_EVERY:
                 self.placed_at = now
                 self._send(place_sequence(self.bg_id, cols, rows))
             return
         await self._apply(cols, rows)
-
-    def _warm(self):
-        """the home screen has no wallpaper of its own, so build it while nobody's waiting: the first screen opened
-        from the menu then has it right away"""
-        size = self.app.size
-        cell = self._scaled_cell(size.width)
-        if self._warming or not size.width or (size.width, size.height, cell) in _pictures:
-            return
-        self._warming = True
-
-        def build():
-            try:
-                _picture(size.width, size.height, cell)
-            finally:
-                self._warming = False
-
-        threading.Thread(target=build, name="paws-bg-warm", daemon=True).start()
 
     def _region(self, scr, size):
         # a screen can shrink the background to its left-hand columns (e.g. to leave a plain
@@ -209,14 +216,27 @@ class Underlay:
         return cols, size.height
 
     def _hide(self):
-        if self.bg_id is not None:
-            # forget the placement completely, not just "not shown": d=i deletes the image data
-            # itself, so placing that same id back later draws nothing. screens that carry their
-            # own picture (home, arcade) used to take the wallpaper with them for the rest of the
-            # session because bg_size still matched and only a re-place was attempted - now the
-            # next visible screen retransmits a fresh image instead
-            self._send(delete_sequence(self.bg_id))
-            self.bg_id, self.bg_size, self.bg_shown = None, None, False
+        if self.bg_id is not None and self.bg_shown:
+            self._send(hide_sequence(self.bg_id))
+            self.bg_shown = False
+
+    async def _preload(self):
+        """the home screen has no wallpaper, so this is when the next screen's gets ready: built, sent, not shown"""
+        size = self.app.size
+        region = (size.width, size.height)
+        if not size.width or (self.bg_id is not None and self.bg_size == region):
+            return
+        self.busy = True
+        try:
+            png = await asyncio.to_thread(_picture, *region, self._scaled_cell(size.width))
+            old_bg, new_id = self.bg_id, next(self._ids)
+            self._send(transmit_png(new_id, png, *region, place=False))
+            self.bg_id, self.bg_size, self.bg_shown = new_id, region, False
+            self.sent_at = time.monotonic()
+            if old_bg is not None:
+                self._send(delete_sequence(old_bg))
+        finally:
+            self.busy = False
 
     def _scaled_cell(self, cols):
         cw, ch = hires.CELL
@@ -239,6 +259,7 @@ class Underlay:
             self.bg_id, self.bg_size, self.bg_shown = new_id, (cols, rows), True
             now = time.monotonic()
             self.sent_at = self.placed_at = now
+            self._settle = SETTLE_AFTER
             if old_bg is not None:
                 self._send(delete_sequence(old_bg))
             self.app.screen.refresh()

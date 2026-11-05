@@ -33,6 +33,25 @@ if sys.__stdout__ is not None and sys.__stdout__.isatty():
         _GRAPHICS = False
 
 
+def _fix_cleanup() -> None:
+    """textual_image frees a picture with `a=d,I=<id>`. with no d= that means "delete everything visible", and I isn't
+    even the id key, so swapping one small picture wiped the wallpaper off the screen until it was next placed"""
+    try:
+        from textual_image.renderable import tgp
+    except Exception:
+        return
+
+    def cleanup(self):
+        if self.terminal_image_id:
+            tgp._send_tgp_message(a="d", d="I", i=self.terminal_image_id, q=2)
+            self.terminal_image_id = None
+
+    tgp.Image.cleanup = cleanup
+
+
+_fix_cleanup()
+
+
 def measure() -> tuple[float, float] | None:
     try:
         import fcntl

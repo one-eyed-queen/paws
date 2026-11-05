@@ -100,16 +100,24 @@ def add_missing(report=None) -> list[str]:
     return added
 
 
-def run(report=None) -> list[str]:
-    """what paws does at every start: add games that are missing, then put names and order on the config rows"""
-    from .. import settings
+def name_rows() -> bool:
+    """every row gets its game's full name. a failed lookup only leaves a row unnamed until the next try"""
     from ..config.tidy import tidy, unnamed_ids
     from ..sources.depots import names
 
+    try:
+        return tidy(names(unnamed_ids()))
+    except Exception:
+        return False
+
+
+def run(report=None) -> list[str]:
+    """what paws does at every start: add games that are missing, then put names and order on the config rows"""
+    from .. import settings
     if not settings.get_setting("auto_add_games") or settings.missing_reason():
         return []
     added = add_missing(report)
     if report is not None:
         report("done", len(added), len(added))
-    tidy(names(unnamed_ids()))
+    name_rows()
     return added

@@ -52,7 +52,7 @@ class BulkScreen(Screen):
         for it in p.items:
             t.add_row(it.id, it.name or self.names.get(it.id, "") or "[#9db0e0]?[/]", it.note or "app")
         if p.kind == "depots":
-            self.set_out("[yellow]that's a depot list: those ids aren't apps, nothing to add[/yellow]")
+            self.set_out("[#ffd75f]that's a depot list: those ids aren't apps, nothing to add[/]")
         elif p.items:
             base = f" of [b]{p.base_name or p.base_id}[/b]" if p.kind == "dlc" and p.base_id else ""
             self.set_out(
@@ -67,17 +67,17 @@ class BulkScreen(Screen):
     @on(Button.Pressed, "#b-bulk-add")
     def _add(self):
         if not self.parsed.items:
-            self.set_out("[yellow]nothing to add yet: paste some ids first[/yellow]")
+            self.set_out("[#ffd75f]nothing to add yet: paste some ids first[/]")
             return
         result = games.apply_bulk(games.plans_from(self.parsed, self.names))
         new = result["added"]
         text = (
-            f"[green]added {new} new entr{'y' if new == 1 else 'ies'}[/green] for {result['games']} game(s)"
+            f"[#5ff0a0]added {new} new entr{'y' if new == 1 else 'ies'}[/] for {result['games']} game(s)"
             if new
-            else "[yellow]nothing new: all of it was already in your config[/yellow]"
+            else "[#ffd75f]nothing new: all of it was already in your config[/]"
         )
         if result["errors"]:
-            text += f"\n[red]{len(result['errors'])} error(s)[/red]: {result['errors'][0]}"
+            text += f"\n[#ff7a8a]{len(result['errors'])} error(s)[/]: {result['errors'][0]}"
         self.set_out(text)
         self.app.tell(
             f"bulk add: {new} new", f"{result['games']} game(s)", "warning" if result["errors"] else "information"
@@ -87,7 +87,7 @@ class BulkScreen(Screen):
     def _remove(self):
         ids = self._ids_to_remove()
         if not ids:
-            self.set_out("[yellow]nothing to remove yet: paste some ids first[/yellow]")
+            self.set_out("[#ffd75f]nothing to remove yet: paste some ids first[/]")
             return
         what = (
             f"the game {ids[0]} and all its DLC"
@@ -108,7 +108,7 @@ class BulkScreen(Screen):
     def _remove_now(self, ids):
         result = games.remove_bulk(ids)
         self.set_out(
-            f"[green]removed {result['removed']} thing(s)[/green] from {result['removed_games']} game(s)"
+            f"[#5ff0a0]removed {result['removed']} thing(s)[/] from {result['removed_games']} game(s)"
             + (f", {result['not_found']} weren't there" if result["not_found"] else "")
         )
         self.app.tell("bulk remove", f"{result['removed']} thing(s) from {result['removed_games']} game(s)")

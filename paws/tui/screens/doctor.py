@@ -87,10 +87,10 @@ class DoctorScreen(Screen):
         body = self.query_one("#doctor-scroll", VerticalScroll)
         body.remove_children()
         for check in report.checks:
-            sym = {"ok": "[green]OK[/green]", "warn": "[yellow]WARN[/yellow]", "error": "[red]FAIL[/red]"}.get(
+            sym = {"ok": "[b #5ff0a0]OK[/]", "warn": "[b #ffd75f]WARN[/]", "error": "[b #ff7a8a]FAIL[/]"}.get(
                 check.severity, " "
             )
-            body.mount(Static(f"{sym} [b]{check.label}[/b]: [#9db0e0]{check.detail}[/]"))
+            body.mount(Static(f"{sym} [b]{check.label}[/b]: [#d5deff]{check.detail}[/]"))
 
     def action_pop(self):
         self.app.pop_screen()

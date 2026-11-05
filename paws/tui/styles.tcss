@@ -265,6 +265,7 @@ ModalInput, Confirm, ModalInfo, ModalPaste, ModalPick {
 }
 
 #add-left DataTable {
+    overflow-x: hidden;
     height: 1fr;
 }
 
@@ -274,21 +275,23 @@ ModalInput, Confirm, ModalInfo, ModalPaste, ModalPick {
 }
 
 #add-queue-col {
-    width: 28;
-    height: 100%;
-    margin: 0 0 0 1;
+    width: 100%;
+    height: 7;
+    margin: 1 0 0 0;
 }
 
 #add-queue-col DataTable {
     height: 1fr;
 }
 
-#add-queue-title {
+#add-queue-title, #add-results-title {
     height: 1;
+    color: #d5deff;
+    text-style: bold;
 }
 
 #add-detail {
-    width: 40;
+    width: 38;
     height: 100%;
     margin: 0 0 0 1;
 }
@@ -306,27 +309,6 @@ ModalInput, Confirm, ModalInfo, ModalPaste, ModalPick {
     margin-top: 1;
     height: auto;
     width: 100%;
-}
-
-FixingPopup {
-    align: center middle;
-}
-
-#modal-fixing {
-    width: 60;
-    height: auto;
-    padding: 1 2;
-    border: round $primary;
-    background: $surface;
-}
-
-#modal-fixing Label, #fix-bar {
-    width: 100%;
-}
-
-#fix-buttons {
-    height: auto;
-    margin-top: 1;
 }
 
 #bulk-out, #repair-out, #sec-out, #sls-out, #plug-out, #add-hint, #act-out, #remove-out {
@@ -758,7 +740,10 @@ Button {
     content-align: center middle;
 }
 Button:hover {
-    background: $primary 22%;
+    background: transparent;
+    border: solid #6f8fe8 !important;
+    border-top: solid #6f8fe8 !important;
+    border-bottom: solid #6f8fe8 !important;
 }
 Button:focus {
     background: $accent 22%;

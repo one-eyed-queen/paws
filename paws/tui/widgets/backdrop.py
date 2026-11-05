@@ -12,6 +12,7 @@ from textual.strip import Strip
 
 from ... import settings
 from ...paths import DATA_DIR
+from .. import colorblind
 
 BG_IMAGE = DATA_DIR / "img" / "paws-bg.png"
 STRENGTH = 0.3
@@ -75,6 +76,7 @@ class Backdrop:
             image = image.filter(ImageFilter.GaussianBlur(self.blur))
         elif self.sharpen:
             image = image.filter(ImageFilter.UnsharpMask(radius=0.9, percent=self.sharpen, threshold=2))
+        image = colorblind.image(image)  # painted after the line filters, so they never reach these
         px = image.load()
         b, s = self.base, self.strength
         self._px = [
@@ -227,7 +229,8 @@ def _base_rgb(owner):
     kept = getattr(owner, "_base_rgb", None)
     if kept is not None and now - kept[0] < 2.0:
         return kept[1]
-    rgb = tuple(owner.background_colors[1].rgb)
+    # line filters run before this sees the strips, so a colour blind mode has already changed the colour looked for
+    rgb = colorblind.convert(tuple(owner.background_colors[1].rgb), colorblind.mode())
     owner._base_rgb = (now, rgb)
     return rgb
 

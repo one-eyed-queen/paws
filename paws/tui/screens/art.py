@@ -13,6 +13,10 @@ from ..widgets.header import AppHeader
 from ..widgets.menu import Menu, MenuItem
 
 
+def _order(key):
+    return (not key.isdigit(), int(key) if key.isdigit() else 0, key)
+
+
 class ArtScreen(Screen):
     DEFAULT_CLASSES = "page"
     BINDINGS = [("escape", "pop", "back"), ("backspace", "pop", "back")]
@@ -34,12 +38,12 @@ class ArtScreen(Screen):
         self._current = None
         m = self.query_one("#art-menu", Menu)
         now = art.banner_name()
-        for key in sorted(self.arts):
+        for key in sorted(self.arts, key=_order):
             a = self.arts[key]
             m.append(MenuItem(key, self._label(key, now), a.title or f"{len(a.lines)} lines", "art"))
         if m.children:
             m.focus()
-            names = sorted(self.arts)
+            names = sorted(self.arts, key=_order)
             start = names.index(now) if now in names else 0
             m.index = start
             self._show(names[start])
@@ -93,7 +97,7 @@ class ArtScreen(Screen):
     def _label(self, key, now):
         a = self.arts[key]
         star = "[#ffd75f]★[/] " if key == now else "  "
-        nsfw = " [red]nsfw[/red]" if a.nsfw else ""
+        nsfw = " [#ff7a8a]nsfw[/]" if a.nsfw else ""
         src = " [cyan]yours[/cyan]" if a.source == "user" else ""
         return f"{star}{key}{src}{nsfw}"
 

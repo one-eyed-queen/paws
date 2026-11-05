@@ -22,6 +22,7 @@ DEFAULTS: dict = {
     "alias_shell": "",
     "auto_update": True,
     "auto_add_games": True,
+    "colorblind": "off",
     "update_interval_min": 5,
 }
 

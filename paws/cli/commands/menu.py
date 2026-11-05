@@ -17,8 +17,9 @@ def run(args) -> int:
         )
         return 1
     from ... import update
-    from ...tui import main as tui_main
 
     update.run(sys.argv[1:])
+
+    from ...tui import main as tui_main  # the slow import, after the splash so that's on screen right away
 
     return tui_main()

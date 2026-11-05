@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 
 from ... import settings
 
@@ -25,6 +26,7 @@ def add_parser(subparsers, common):
             "launch",
             "update",
             "auto-add",
+            "colorblind",
         ],
         default="nsfw",
         help="show or set",
@@ -92,6 +94,14 @@ def run(args) -> int:
         if args.value is not None:
             settings.set_setting("auto_add_games", args.value.lower() in _ON)
         print(f"add missing games on start: {'on' if settings.get_setting('auto_add_games') else 'off'}")
+    elif what == "colorblind":
+        modes = ("off", "protanopia", "deuteranopia", "tritanopia", "monochrome")
+        if args.value is not None:
+            if args.value not in modes:
+                print(f"paws: colorblind has to be one of {', '.join(modes)}", file=sys.stderr)
+                return 2
+            settings.set_setting("colorblind", args.value)
+        print(f"colour blind mode: {settings.get_setting('colorblind')} ({' / '.join(modes)})")
     elif what == "launch":
         if args.value is not None:
             settings.set_setting("launch_cmd", args.value)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 
 from ...sls import activation
 
@@ -24,6 +25,9 @@ def add_parser(subparsers, common):
 
 
 def run(args) -> int:
+    if not str(args.appid).isdigit():
+        print(f"paws: {args.appid} isn't an AppId, it has to be a number", file=sys.stderr)
+        return 2
     if args.dry_run:
         from ...config.scalars import get_scalar
         from ...sls.find import find_sls

@@ -24,6 +24,18 @@ def render_item(section: str, fields: dict | None = None, **kwargs) -> str:
     return item_tpl.format(**merged)
 
 
+def _open_block(lines: list[str], index: int) -> None:
+    """`Key: []` or `Key: [1, 2]` is valid yaml, but rows put under it are not: turn it into a block first"""
+    key, _, rest = lines[index].partition(":")
+    value = rest.split(" #")[0].strip()
+    if not (value[:1] in "[{" and value[-1:] in "]}" and value):
+        return
+    items = [item.strip() for item in value[1:-1].split(",") if item.strip()] if value[0] == "[" else []
+    if value[0] == "{" and value[1:-1].strip():
+        return  # a filled inline map is somebody's own layout, and the section code doesn't touch it either
+    lines[index : index + 1] = [f"{key}:", *(f"  - {item}" for item in items)]
+
+
 def add_entry(section: str, rendered: str, backup: bool = True) -> tuple[bool, str | None]:
     path = ensure_config()
     bak = backup_file(path) if backup else None
@@ -35,6 +47,7 @@ def add_entry(section: str, rendered: str, backup: bool = True) -> tuple[bool, s
         lines.append(f"{section}:")
         lines.append(rendered)
     else:
+        _open_block(lines, index)
         needle = " ".join(rendered.split())
         key, ind = item_key(rendered), _indent(rendered)
         for l in lines[index + 1 : block_end_line(lines, index)]:
@@ -60,6 +73,7 @@ def add_map_list_item(section: str, fields: dict, backup: bool = True) -> tuple[
             lines.append("")
         lines += [f"{section}:", key_line, item]
     else:
+        _open_block(lines, index)
         end = block_end_line(lines, index)
         key = item_key(key_line)
         at = next(

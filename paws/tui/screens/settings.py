@@ -11,6 +11,7 @@ from ... import launch
 from ... import notify
 from ... import riced
 from ... import settings
+from .. import colorblind
 from ..widgets.header import AppHeader
 from ..widgets.jobbar import JobBar
 from ..widgets.menu import Menu, MenuItem, restore_index
@@ -85,9 +86,9 @@ class SettingsScreen(Screen):
             ),
             (
                 "auto_add_games",
-                f"Add missing games on start  {self._state(get('auto_add_games'))}",
+                f"Live config fixer  {self._state(get('auto_add_games'))}",
                 "in the background, add games that have keys, manifests or an id in the config but never went "
-                "through add game, and put names on the config rows",
+                "through add game, and put names on the config rows. also runs whenever the config changes while paws is open",
                 "settings",
             ),
             (
@@ -140,6 +141,13 @@ class SettingsScreen(Screen):
                 "the command that opens paws in a terminal (default: paws)",
                 "terminal",
             ),
+            (
+                "colorblind",
+                f"Colour blind mode  [{CYAN}]{colorblind.mode()}[/]",
+                "changes every colour paws draws, text, backgrounds and pictures. Enter cycles off / protanopia / "
+                "deuteranopia / tritanopia / monochrome. in minimal it sets one clear text and background pair.",
+                "settings",
+            ),
         ]
         minimal = settings.is_minimal()
         for key, label, desc, icon_name in rows:
@@ -159,6 +167,8 @@ class SettingsScreen(Screen):
                     "settings",
                 )
             )
+        if isinstance(keep, str):  # by key: the rows differ between riced and minimal, so a number lands elsewhere
+            keep = next((i for i, row in enumerate(menu.children) if row.data == keep), 0)
         menu.focus()
         menu.call_after_refresh(lambda: restore_index(menu, keep))
 
@@ -184,7 +194,12 @@ class SettingsScreen(Screen):
                 )
                 return
             settings.set_setting("type", "riced" if going_riced else "minimal")
-            self.app.call_later(self.app.apply_look, keep)
+            self.app.call_later(self.app.apply_look, "type")
+            return
+        elif data == "colorblind":
+            order = colorblind.MODES
+            settings.set_setting("colorblind", order[(order.index(colorblind.mode()) + 1) % len(order)])
+            self.app.call_later(self.app.apply_look, "colorblind")
             return
         elif data == "random_banner":
             settings.set_setting("random_banner", not settings.get_setting("random_banner"))
@@ -277,7 +292,7 @@ class SettingsScreen(Screen):
             )
             self.app.tell("paws updated", "quit and reopen it to use the new build")
         else:
-            self.query_one("#set-out", Static).update(f"[red]{done.message}[/]")
+            self.query_one("#set-out", Static).update(f"[#ff7a8a]{done.message}[/]")
             self.app.tell("paws update failed", done.message, "error")
 
     @on(Menu.Highlighted)

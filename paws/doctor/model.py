@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 
 from ..config.seed import fill_missing
@@ -21,18 +22,28 @@ from .upstream_check import upstream_config_check
 class Doctor:
     checks: list[CheckResult] = field(default_factory=list)
 
+    def stream(self):
+        """each group's rows as soon as they're known, in order. they run side by side: most of the wait is github"""
+        steam, sls = find_steam(), find_sls()
+        groups = [
+            lambda: steam_checks(steam),
+            tools_checks,
+            term_checks,
+            lambda: sls_checks(sls),
+            lambda: client_check(steam, sls) if steam and sls else [],
+            lambda: config_checks(find_config()),
+            lambda: upstream_config_check(sls.lib_dir if sls else None),
+            repair_checks,
+        ]
+        with ThreadPoolExecutor(max_workers=len(groups)) as pool:
+            for future in [pool.submit(group) for group in groups]:
+                rows = future.result()
+                self.checks += rows
+                yield from rows
+
     def run(self) -> Doctor:
-        steam = find_steam()
-        sls = find_sls()
-        self.checks += steam_checks(steam)
-        self.checks += tools_checks()
-        self.checks += term_checks()
-        self.checks += sls_checks(sls)
-        if steam and sls:
-            self.checks += client_check(steam, sls)
-        self.checks += config_checks(find_config())
-        self.checks += upstream_config_check(sls.lib_dir if sls else None)
-        self.checks += repair_checks()
+        for _ in self.stream():
+            pass
         return self
 
     def fix(self) -> list[str]:

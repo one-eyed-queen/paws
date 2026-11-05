@@ -15,12 +15,37 @@ from ... import manifest
 from ... import sources
 from ...sls.archive import is_archive
 from ...sources.store import app_kind, with_kind
+from .. import colorblind
 from ..widgets import hires
 from ..widgets.header import AppHeader
 from ..widgets.modals import ModalInfo, ModalInput
 
 DETAIL_COLS = 34
 DETAIL_MIN_WIDTH = 110  # below this the results and to-add columns need the room more than the detail panel does
+
+
+RESULT_COLUMNS = ("appid", "name", "price", "status")
+
+
+def _in_config() -> set[str]:
+    """games that already went through add game, shown as such so nothing gets added twice"""
+    from ...config import parsed
+
+    try:
+        data = parsed()
+    except Exception:
+        return set()
+    return {str(a) for a in data.get("AdditionalApps") or []} & {str(a) for a in data.get("AppIds") or []}
+
+
+def _picture(path):
+    """the store art goes straight to the terminal, so a colour blind mode has to change it here"""
+    if path is None or colorblind.mode() == "off":
+        return path
+    from PIL import Image
+
+    with Image.open(path) as picture:
+        return colorblind.image(picture.copy())
 
 
 def _plain(text: str) -> str:
@@ -39,16 +64,6 @@ class AddGameScreen(Screen):
         except Exception:
             pass
 
-    def background_cols(self):
-        # keep the wallpaper off the detail panel so its real-graphics picture doesn't have
-        # to share screen space with another kitty image underneath it
-        try:
-            if not self.query_one("#add-detail").display:
-                return None  # no picture panel at this width, so the wallpaper gets the whole screen
-            return self.query_one("#add-queue-col").region.right
-        except Exception:
-            return None
-
     def compose(self) -> ComposeResult:
         yield AppHeader("Add a game", id="hdr")
         with Vertical(id="add-inputs"):
@@ -60,11 +75,12 @@ class AddGameScreen(Screen):
                 yield Button("Bulk...", id="b-bulk")
         with Horizontal(id="add-split"):
             with Vertical(id="add-left"):
+                yield Static("results", id="add-results-title")
                 yield DataTable(id="results-table", cursor_type="row", zebra_stripes=True)
+                with Vertical(id="add-queue-col"):
+                    yield Static("to add", id="add-queue-title")
+                    yield DataTable(id="queue-table", cursor_type="row", zebra_stripes=True)
                 yield Static("", id="add-hint", classes="panel")
-            with Vertical(id="add-queue-col"):
-                yield Static("to add", id="add-queue-title")
-                yield DataTable(id="queue-table", cursor_type="row", zebra_stripes=True)
             with VerticalScroll(id="add-detail", classes="panel"):
                 yield Static("", id="detail-info")
                 if hires.available():
@@ -83,7 +99,7 @@ class AddGameScreen(Screen):
 
     def on_mount(self):
         self.query_one("#add-detail").can_focus = False
-        self._table().add_columns("appid", "name", "source", "price")
+        self._table().add_columns(*RESULT_COLUMNS)
         self.query_one("#queue-table", DataTable).add_columns("appid", "name")
         self._queue: list = []
         self._search_id = 0
@@ -117,10 +133,18 @@ class AddGameScreen(Screen):
         self._results = results
         t = self._table()
         t.clear(columns=True)
-        t.add_columns("appid", "name", "source", "price")
+        # fixed widths around the name, so a long name gets cut instead of pushing price and status out of sight
+        name_width = max(16, t.size.width - 8 - 9 - 6 - 8 - 2)
+        t.add_column("appid", width=8)
+        t.add_column("name", width=name_width)
+        t.add_column("price", width=9)
+        t.add_column("status", width=6)
+        have = _in_config()
         for r in results:
-            price = f"[#9db0e0]{r.price}[/]" if getattr(r, "price", "") else ""
-            t.add_row(str(r.appid), with_kind(r.name or str(r.appid), r.kind), r.source, price)
+            price = f"[#d5deff]{r.price}[/]" if getattr(r, "price", "") else ""
+            state = "[b #5ff0a0]added[/]" if str(r.appid) in have else ""
+            t.add_row(str(r.appid), with_kind(r.name or str(r.appid), r.kind), price, state)
+        self.query_one("#add-results-title", Static).update(f"results ({len(results)})")
         self.set_hint(f"{len(results)} result(s). Arrow keys to browse, Enter puts one on the list, Apply adds them.")
         if results:
             t.focus()
@@ -163,7 +187,7 @@ class AddGameScreen(Screen):
                 self._parse_output,
             )
         elif sid == "b-import":
-            self.app.push_screen(ModalInput("Drop path to a .lua/.manifest/.key/.zip"), self._import_path_input)
+            self.app.push_screen(ModalInput("Path to a .lua/.manifest/.key/.zip/.rar/.7z"), self._import_path_input)
         elif sid == "b-add":
             self._add_selected()
         elif sid == "b-apply":
@@ -172,35 +196,41 @@ class AddGameScreen(Screen):
             self.action_pop()
 
     def _search(self, q):
+        q = (q or "").strip()
         if not q:
-            self.set_hint("[red]type a game name or AppId first[/red]")
+            self.set_hint("[#ff7a8a]type a game name or AppId first[/]")
             return
-        q = q.strip()
+        self.set_hint("[#d5deff]searching...[/]")
+        self._search_store(q)
+
+    @work(thread=True, exclusive=True, group="add-search")
+    def _search_store(self, q):
+        """the store can take seconds, and the screen stays usable meanwhile"""
+        call = self.app.call_from_thread
         try:
             if q.isdigit():
                 gi = sources.from_store(q)
                 if gi.free:
-                    self._free_popup(gi.name, gi.appid)
+                    call(self._free_popup, gi.name, gi.appid)
                     return
-                self._show_results([gi])
-            else:
-                hits = sources.search_store(q)
-                free = sources.free_ids([h.appid for h in hits])
-                hits = [h for h in hits if h.appid not in free]
-                if not hits:
-                    self.set_hint(
-                        f"[#9db0e0]only free stuff matched ({len(free)} hidden), free items don't need adding[/]"
-                        if free
-                        else "[#9db0e0]no store hits; maybe try an AppId[/]"
-                    )
-                    return
-                self._show_results(hits)
-                if free:
-                    self.set_hint(f"{len(hits)} result(s), {len(free)} free one(s) hidden. Enter puts one on the list.")
-        except RuntimeError as e:
-            self.set_hint(f"[red]{e}[/red]")
+                call(self._show_results, [gi])
+                return
+            hits = sources.search_store(q)
+            free = sources.free_ids([h.appid for h in hits])
+            hits = [h for h in hits if h.appid not in free]
+            if not hits:
+                call(
+                    self.set_hint,
+                    f"[#d5deff]only free stuff matched ({len(free)} hidden), free items don't need adding[/]"
+                    if free
+                    else "[#d5deff]no store hits; maybe try an AppId[/]",
+                )
+                return
+            call(self._show_results, hits)
+            if free:
+                call(self.set_hint, f"{len(hits)} result(s), {len(free)} free one(s) hidden. Enter puts one on the list.")
         except Exception as e:
-            self.set_hint(f"[red]{e}[/red]")
+            call(self.set_hint, f"[#ff7a8a]{e}[/]")
 
     def _parse_output(self, text):
         if not text:
@@ -208,17 +238,17 @@ class AddGameScreen(Screen):
         try:
             additional, dlc_data = sources.parse_sls_output(text.strip())
             if not additional and not dlc_data:
-                self.set_hint("[red]nothing parseable - expected 'AdditionalApps:' / 'DlcData:'[/red]")
+                self.set_hint("[#ff7a8a]nothing parseable - expected 'AdditionalApps:' / 'DlcData:'[/]")
                 return
             appid = dlc_data and next(iter(dlc_data)) or (additional[0] if additional else "")
-            info = sources.GameInfo(appid=str(appid), name="from pasted output", source="pasted")
+            info = sources.GameInfo(appid=str(appid), name="", source="pasted")
             info.linked = additional
             info.dlc_names = next(iter(dlc_data.values())) if dlc_data else {}
             if not self._offer(games.plan_from_info(info)):
                 return
             self.set_detail(f"[b]{appid}[/b]  pasted output: {len(additional)} additional + {len(info.dlc_names)} dlc")
         except Exception as e:
-            self.set_hint(f"[red]{e}[/red]")
+            self.set_hint(f"[#ff7a8a]{e}[/]")
 
     def _import_path_input(self, p):
         if p:
@@ -227,7 +257,7 @@ class AddGameScreen(Screen):
     def _import_path(self, p):
         path = Path(p.strip().strip("'\"")).expanduser()
         if not path.exists():
-            self.set_hint(f"[red]not found:[/red] {path}")
+            self.set_hint(f"[#ff7a8a]not found:[/] {path}")
             return
         # a lone .key (or any file with no AppId of its own) needs to know what game it's
         # for - if one's already typed in the search box, use it, so the game itself gets
@@ -242,11 +272,11 @@ class AddGameScreen(Screen):
                 b.add_file(path)
             plan = games.plan_from_bundle(b)  # finds the game itself when the file only names a depot
         except Exception as e:
-            self.set_hint(f"[red]{path.name}: {e}[/red]")
+            self.set_hint(f"[#ff7a8a]{path.name}: {e}[/]")
             return
         if not plan.appid:
             self.set_hint(
-                f"[red]couldn't tell which game {path.name} is for[/red] - drop its matching .lua "
+                f"[#ff7a8a]couldn't tell which game {path.name} is for[/] - drop its matching .lua "
                 "alongside it, or a .zip with both, or type the AppId and search first."
             )
             return
@@ -303,7 +333,7 @@ class AddGameScreen(Screen):
     def _show_detail(self, gi):
         self._detail = gi
         title = f"[b]{gi.appid}[/b]  {with_kind(gi.name, gi.kind)}" if gi.name else f"[b]{gi.appid}[/b]"
-        price = "[green]free[/green]" if gi.free else f"[green]{gi.price}[/green]" if gi.price else ""
+        price = "[#5ff0a0]free[/]" if gi.free else f"[#5ff0a0]{gi.price}[/]" if gi.price else ""
         self.set_detail(f"{title}\n{price}" if price else title)
         self._show_image(getattr(gi, "header_image", "") or "")
         self.query_one("#detail-desc", Static).update(_plain(gi.short_description))
@@ -328,13 +358,15 @@ class AddGameScreen(Screen):
         if path == self._img_key:
             return
         self._img_key = path
-        self._img_widget.image = path
+        self._img_widget.image = _picture(path)
 
     def _add_selected(self):
-        if self._detail is None and self._results:
-            self._detail = self._results[0]
+        table = self._table()
+        if self._results and 0 <= table.cursor_row < len(self._results):  # what's highlighted, not the last one loaded
+            if self._detail is None or self._detail.appid != self._results[table.cursor_row].appid:
+                self._detail = self._results[table.cursor_row]
         if self._detail is None:
-            self.set_hint("[red]hover / select a result first[/red]")
+            self.set_hint("[#ff7a8a]hover / select a result first[/]")
             return
         info = self._detail
         try:
@@ -342,7 +374,7 @@ class AddGameScreen(Screen):
                 info = sources.from_store(info.appid)
             self._offer(games.plan_from_info(info), info.kind)
         except Exception as e:
-            self.set_hint(f"[red]{e}[/red]")
+            self.set_hint(f"[#ff7a8a]{e}[/]")
 
     def _free_popup(self, name, appid):
         self.app.push_screen(ModalInfo(games.free_message(name, str(appid)), "free on steam"))
@@ -391,11 +423,14 @@ class AddGameScreen(Screen):
         try:
             result = games.apply_bulk([plan for plan, _label in self._queue])
         except Exception as e:  # the list stays, so nothing has to be picked again
-            self.set_hint(f"[red]{e}[/red]")
+            self.set_hint(f"[#ff7a8a]{e}[/]")
             return
+        from ...games.background import name_rows
+
+        self.run_worker(name_rows, thread=True, group="add-names")  # imported files may not have said their game's name
         self._queue = []
         self._draw_queue()
-        self.set_hint(f"[green]added {len(names)} game(s)[/green] [red]errors={len(result['errors'])}[/red]")
+        self.set_hint(f"[#5ff0a0]added {len(names)} game(s)[/] [#ff7a8a]errors={len(result['errors'])}[/]")
         if result["errors"]:
             self.app.tell(f"added {len(names)} game(s), with problems", str(result["errors"][0])[:160], "warning")
         else:

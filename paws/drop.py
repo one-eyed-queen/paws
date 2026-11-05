@@ -271,8 +271,12 @@ def import_tickets(paths: list[Path]) -> DropResult:
 
 def import_files(paths: list[Path]) -> DropResult:
     from .games import apply_plan, plan_from_bundle
+    from .games.background import name_rows
     from .manifest.bundle import ManifestBundle
 
+    gone = [p for p in paths if not p.exists()]
+    if gone:
+        return DropResult(False, "file not found", [str(p) for p in gone])
     bundle = ManifestBundle()
     problems = []
     warnings = []
@@ -299,6 +303,7 @@ def import_files(paths: list[Path]) -> DropResult:
         if not changes:
             return DropResult(False, "nothing to add", problems or warnings or ["those files didn't have anything paws can use"])
         result = apply_plan(plan)
+        name_rows()
     except Exception as error:
         return DropResult(False, "couldn't add it", [str(error), *problems])
     finally:
@@ -344,6 +349,9 @@ def import_text(parsed, lookup: bool = False) -> DropResult:
         result = apply_bulk(plans)
     except Exception as error:
         return DropResult(False, "couldn't add them", [str(error)])
+    from .games.background import name_rows
+
+    name_rows()
     n = len(parsed.items)
     new = result.get("added", 0)
     if parsed.kind == "dlc" and parsed.base_id:

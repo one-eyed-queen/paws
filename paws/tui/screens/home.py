@@ -247,7 +247,7 @@ class HomeScreen(Screen):
             return []
         if not problems:
             return []
-        colour = "red" if any(p.severity == "error" for p in problems) else "yellow"
+        colour = "#ff7a8a" if any(p.severity == "error" for p in problems) else "#ffd75f"
         return [f"[{colour}]{len(problems)} thing(s) to repair: Status / Doctor > Repair[/{colour}]"]
 
     @staticmethod
@@ -265,7 +265,7 @@ class HomeScreen(Screen):
             return []
         if not added and not removed:
             return []
-        return ["[yellow]SLSsteam's config keys moved: Status / Doctor for details[/yellow]"]
+        return ["[#ffd75f]SLSsteam's config keys moved: Status / Doctor for details[/]"]
 
     def _announce_update(self, latest):
         app = self.app
@@ -294,10 +294,10 @@ class HomeScreen(Screen):
         text = [f"[b]{steam_text}[/b]", f"[b]{sls_text}[/b]"]
         missing = settings.missing_reason()
         if missing:
-            text.append(f"[red]{missing}[/red]")
+            text.append(f"[#ff7a8a]{missing}[/]")
         self._show_latest = not (sls and sls.kind == "windows")  # the release feed is the linux build
         if sls and not sls.desktop_used and sls.kind != "windows":  # windows has no LD_AUDIT, the dll loads itself
-            text.append("[red]LD_AUDIT not wired into the .desktop file[/red]")
+            text.append("[#ff7a8a]LD_AUDIT not wired into the .desktop file[/]")
         text += self._repair_hint()
         text += self._schema_hint(sls)
         self.app.call_from_thread(self._set_status, text, gen)

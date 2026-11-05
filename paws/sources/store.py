@@ -27,6 +27,16 @@ KIND_WORDS = (
 STORE_KINDS = {"dlc": "dlc", "music": "soundtrack", "video": "video", "mod": "mod", "demo": "demo"}
 
 
+def _search_price(price) -> str:
+    """search hits give {currency, initial, final} in cents, not the formatted text appdetails has"""
+    if not isinstance(price, dict):
+        return str(price or "")
+    final, currency = price.get("final"), price.get("currency", "")
+    if not isinstance(final, (int, float)):
+        return ""
+    return f"${final / 100:.2f}" if currency == "USD" else f"{final / 100:.2f} {currency}".strip()
+
+
 def kind_label(name: str, store_type: str = "") -> str:
     """what goes in brackets after a name: artbook, soundtrack, dlc... a main game gets nothing. the store files
     artbooks under plain dlc, so the name gets the first say"""
@@ -67,7 +77,7 @@ def search_store(term: str, *, cc: str = "us", l: str = "en") -> list[GameInfo]:
             GameInfo(
                 appid=appid,
                 name=name,
-                price=it.get("price", "") or "",
+                price=_search_price(it.get("price")),
                 kind=kind_label(name),
                 source="store",
                 # storesearch only hands back a tiny (~80px) thumbnail; the full header is at this fixed CDN

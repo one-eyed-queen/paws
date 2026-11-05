@@ -101,7 +101,7 @@ class RemoveGameScreen(Screen):
 
     def _preview(self):
         if not self._selected:
-            self.set_out("[yellow]pick a row, or type an AppId first[/yellow]")
+            self.set_out("[#ffd75f]pick a row, or type an AppId first[/]")
             return
         kind, appid, dlc_id = self._selected
         if kind == "dlc":
@@ -118,11 +118,11 @@ class RemoveGameScreen(Screen):
         kind, appid, dlc_id = self._selected
         if kind == "dlc":
             result = games.remove_single_dlc(appid, dlc_id)
-            self.set_out(f"[green]done[/green]: {result}")
+            self.set_out(f"[#5ff0a0]done[/]: {result}")
             self.app.tell(f"DLC {dlc_id} removed", f"{result.get('removed', 0)} entries taken out")
         else:
             result = games.apply_remove(games.plan_remove(appid))
-            self.set_out(f"[green]done[/green]: {result}")
+            self.set_out(f"[#5ff0a0]done[/]: {result}")
             self.app.tell(f"{appid} removed", f"{result.get('removed', 0)} entries taken out")
         self._selected = None
         self._refresh_table()

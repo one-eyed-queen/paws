@@ -18,6 +18,7 @@ from textual.widgets import Input, TextArea
 
 from .. import drop, notify, settings, textdrop
 from ..sls import share
+from . import colorblind
 from .jobs import Job
 
 
@@ -79,7 +80,9 @@ class PawsApp(App):
         self.run_worker(self._remember_good_config, thread=True, group="known-good")
         # a daemon thread, not a worker: asyncio waits for worker threads on exit, and these lookups can take minutes,
         # which left quit hanging until ctrl+c. everything here is saved as it goes, so dying mid-way loses nothing
-        threading.Thread(target=self._add_missing_games, name="paws-bg-add", daemon=True).start()
+        self._fixer_busy = False
+        self._start_fixer()
+        self.set_interval(3.0, self._watch_config)
         self.push_screen(HomeScreen())
         self._fit_to_height(self.size.height)
 
@@ -88,6 +91,12 @@ class PawsApp(App):
         self.set_class(minimal, "-minimal")
         self.theme = "ansi-dark" if minimal else "paws"
         self._plain.enabled = minimal
+        old = getattr(self, "_colorblind", None)
+        if old in self._filters:
+            self._filters.remove(old)
+        self._colorblind = colorblind.filter_for(minimal)
+        if self._colorblind is not None:
+            self._filters.append(self._colorblind)
 
     def run_job(self, label, work, finish=None):
         """work(progress) runs in a thread and belongs to the app, not a screen, so leaving the screen doesn't stop
@@ -149,35 +158,57 @@ class PawsApp(App):
         except Exception:
             pass
 
-    def _add_missing_games(self):
-        from ..games.background import run
-
-        def report(stage, done, total, name=""):
-            if self.is_running:
-                self.call_from_thread(self._fix_progress, stage, done, total, name)
+    def _config_stamp(self):
+        from ..config.where import find_config
 
         try:
-            added = run(report)
-        except Exception as error:  # the next start tries again, and this must never get in the way of the menu
-            if self.is_running:
-                self.call_from_thread(self._fix_progress, "failed", 0, 0, str(error))
+            return find_config().stat().st_mtime_ns
+        except (OSError, AttributeError):
+            return None
+
+    def _start_fixer(self):
+        self._fixer_busy = True
+        threading.Thread(target=self._add_missing_games, name="paws-bg-add", daemon=True).start()
+
+    def _watch_config(self):
+        """the live fixer: an edit made by hand, or by anything else, gets the same treatment as a start. it waits for
+        the file to stop changing and leaves a config that doesn't parse alone, that's somebody halfway through a save"""
+        stamp = self._config_stamp()
+        if self._fixer_busy or stamp is None or stamp == self._fixed_stamp:
+            self._pending_stamp = None
+            return
+        if stamp != getattr(self, "_pending_stamp", None):
+            self._pending_stamp = stamp
+            return
+        self._pending_stamp = None
+        from .. import config
+
+        try:
+            config.parsed()
+        except Exception:
+            self._fixed_stamp = stamp
+            return
+        self._start_fixer()
+
+    _fixed_stamp = None
+
+    def _add_missing_games(self):
+        try:
+            self._add_missing_games_once()
+        finally:
+            self._fixed_stamp = self._config_stamp()  # our own writes don't count as a new edit
+            self._fixer_busy = False
+
+    def _add_missing_games_once(self):
+        from ..games.background import run
+
+        # quiet on purpose: small things get fixed behind the menu, a broken config is what the home screen warns about
+        try:
+            added = run()
+        except Exception:  # the next start or config change tries again
             return
         if added and self.is_running:
             self.call_from_thread(self.tell, f"added {len(added)} missing game(s)", ", ".join(added))
-
-    _fix_popup = None
-
-    def _fix_progress(self, stage, done, total, name):
-        """the popup only appears once there's really something to do: a start with nothing missing never shows it"""
-        from .widgets.modals import FixingPopup
-
-        popup = self._fix_popup
-        if popup is None:
-            if stage in ("done", "failed"):
-                return
-            popup = self._fix_popup = FixingPopup()
-            self.push_screen(popup)
-        popup.show_progress(stage, done, total, name)
 
     def on_unmount(self):
         if getattr(self, "underlay", None) is not None:

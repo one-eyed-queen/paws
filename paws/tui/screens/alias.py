@@ -78,14 +78,14 @@ class AliasScreen(Screen):
         try:
             r = sa.install_function(self.shell(), self.cmd())
         except ValueError as e:
-            self.say(f"[red]{e}[/red]")
+            self.say(f"[#ff7a8a]{e}[/]")
             return
         self.say(f"{r.note} in {r.file}" + ("   [#9db0e0]open a new terminal for it to work[/]" if r.changed else ""))
 
     @on(Button.Pressed, "#alias-copy")
     def _copy(self):
         if not sa.valid_name(self.cmd()):
-            self.say("[red]fix the command name first[/red]")
+            self.say("[#ff7a8a]fix the command name first[/]")
             return
         ok = clipboard.copy(sa.snippet(self.shell(), self.cmd()))
         self.say("copied the snippet" if ok else "couldn't reach the clipboard: select it above and copy it")

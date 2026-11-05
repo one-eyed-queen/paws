@@ -10,8 +10,9 @@ VERSION_TEXT = (
 )
 
 
-def build_parser() -> argparse.ArgumentParser:
-    from .commands import COMMANDS
+def build_parser(only: str | None = None) -> argparse.ArgumentParser:
+    """only: set up just this command. loading all twenty for every run is most of what made paws slow to answer"""
+    from .commands import COMMANDS, load
 
     p = argparse.ArgumentParser(
         prog="paws", description="menu-driven SLSsteam (or OpenValve / HubCapTools) manager for Linux and Windows"
@@ -22,6 +23,6 @@ def build_parser() -> argparse.ArgumentParser:
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--json", action="store_true", help="json output, no menu")
     subparsers = p.add_subparsers(dest="command")
-    for command in COMMANDS.values():
+    for command in [load(only)] if only else COMMANDS.values():
         command.add_parser(subparsers, common)
     return p

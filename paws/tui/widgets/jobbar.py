@@ -11,12 +11,12 @@ IDLE_TRACK = "#2b2f38"
 IDLE_TEXT = "#8b93a5"
 DARK_TEXT = "#06101f"
 LIGHT_TEXT = "#dbe4ff"
-IDLE_LABEL = "~UwU~"
+IDLE_LABEL = ""
 
 
 class JobBar(Widget):
     """shows what paws is busy with, read from app.job so it's the same on every screen. riced: a bar that fills
-    from the left with the words and percent on it, rainbow coloured, dark grey with ~UwU~ when nothing is going on.
+    from the left with the words and percent on it, rainbow coloured, empty when nothing is going on.
     minimal: only there during a job, at the bottom: the words and percent, then solid blocks growing from the left
     (no track, so an empty bar is not a line)"""
 
@@ -47,7 +47,9 @@ class JobBar(Widget):
             if not busy:
                 return Text("")
             return Text(f"{words}\n" + "█" * round(width * job.value()), no_wrap=True)
-        return self._thick(width, words, job.value() if busy else None)
+        if not busy:
+            return Text("")  # no block when nothing's going on: the picture behind stays visible
+        return self._thick(width, words, job.value())
 
     def _thick(self, width, words, value):
         rows = max(self.size.height, 1)

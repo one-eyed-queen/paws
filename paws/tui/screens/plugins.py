@@ -93,7 +93,7 @@ class PluginsScreen(Screen):
         try:
             plugin = plugins.new_plugin(name.strip())
         except SlsError as error:
-            self.set_out(f"[red]{error}[/red]")
+            self.set_out(f"[#ff7a8a]{error}[/]")
             return
         self.refresh_list(f"wrote {plugin.path.name}")
         self._open_in_editor(plugin.path)
@@ -105,7 +105,7 @@ class PluginsScreen(Screen):
     def action_edit(self):
         p = self.selected()
         if p is None:
-            self.set_out("[yellow]pick a plugin in the list first[/yellow]")
+            self.set_out("[#ffd75f]pick a plugin in the list first[/]")
             return
         self._open_in_editor(p.path)
 
@@ -120,7 +120,7 @@ class PluginsScreen(Screen):
                 under.resume()
             self.app.force_full_repaint()
         if not result.ran:
-            self.set_out(f"[red]{result.error}[/red]")
+            self.set_out(f"[#ff7a8a]{result.error}[/]")
             return
         self.refresh_list(f"saved in {result.editor}" if result.changed else "nothing changed")
 
@@ -139,7 +139,7 @@ class PluginsScreen(Screen):
         try:
             got = plugins.import_plugin(path.strip().strip("'\""))
         except SlsError as error:
-            self.set_out(f"[red]{error}[/red]")
+            self.set_out(f"[#ff7a8a]{error}[/]")
             return
         self.refresh_list(f"imported {got.name} (off, enable it when you're ready)")
 
@@ -147,7 +147,7 @@ class PluginsScreen(Screen):
     def _export(self):
         p = self.selected()
         if p is None:
-            self.set_out("[yellow]pick a plugin in the list first[/yellow]")
+            self.set_out("[#ffd75f]pick a plugin in the list first[/]")
             return
         self.app.push_screen(
             ModalInput("Folder to write the .paws-plugin.zip into", "Export", default=str(HOME)),
@@ -160,20 +160,20 @@ class PluginsScreen(Screen):
         try:
             written = plugins.export_plugin(p.name, folder.strip())
         except SlsError as error:
-            self.set_out(f"[red]{error}[/red]")
+            self.set_out(f"[#ff7a8a]{error}[/]")
             return
-        self.set_out(f"[green]wrote {written}[/green]")
+        self.set_out(f"[#5ff0a0]wrote {written}[/]")
 
     @on(Button.Pressed, "#b-toggle")
     def _toggle(self):
         p = self.selected()
         if p is None:
-            self.set_out("[yellow]pick a plugin in the list first[/yellow]")
+            self.set_out("[#ffd75f]pick a plugin in the list first[/]")
             return
         try:
             changed = plugins.disable(p.name) if p.enabled else plugins.enable(p.name)
         except SlsError as error:
-            self.set_out(f"[red]{error}[/red]")
+            self.set_out(f"[#ff7a8a]{error}[/]")
             return
         self.refresh_list(f"{changed.name}: {'on' if changed.enabled else 'off'}")
 
@@ -181,7 +181,7 @@ class PluginsScreen(Screen):
     def _remove(self):
         p = self.selected()
         if p is None:
-            self.set_out("[yellow]pick a plugin in the list first[/yellow]")
+            self.set_out("[#ffd75f]pick a plugin in the list first[/]")
             return
         self.app.push_screen(
             Confirm(f"Remove {p.title}?\n(a copy is kept in the backups)", dangerous=True),
@@ -192,7 +192,7 @@ class PluginsScreen(Screen):
         try:
             message = plugins.remove(p.name)
         except SlsError as error:
-            self.set_out(f"[red]{error}[/red]")
+            self.set_out(f"[#ff7a8a]{error}[/]")
             return
         self.refresh_list(message)
 

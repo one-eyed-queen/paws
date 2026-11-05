@@ -38,11 +38,14 @@ def main(argv: list[str] | None = None) -> int:
         from .commands import menu
 
         return menu.run(None)
-    from .commands import COMMANDS
+    from .commands import NAMES, load
     from .parser import build_parser
     from .window import open_window
 
-    args = build_parser().parse_args(argv)
+    first = next((a for a in argv if not a.startswith("-")), None)
+    asking_help = first is None and ("-h" in argv or "--help" in argv)
+    only = first if first in NAMES else ("menu" if first is None and not asking_help else None)
+    args = build_parser(only).parse_args(argv)
     if args.no_update:
         os.environ["PAWS_NO_UPDATE"] = "1"
     have_tty = sys.stdin.isatty() and sys.stdout.isatty()
@@ -56,7 +59,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"paws: {missing}", file=sys.stderr)
             return 1
     _remember_good_config()
-    return COMMANDS[args.command or "menu"].run(args)
+    return load(args.command or "menu").run(args)
 
 
 def _remember_good_config():

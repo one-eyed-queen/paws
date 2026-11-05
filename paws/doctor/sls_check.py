@@ -98,7 +98,7 @@ def sls_checks(sls) -> list:
         out.append(CheckResult(True, "SLS version", f"latest={latest}", "info"))
     elif sls_module.update_available(sls, latest):
         how = f" (update it with: {pkgmgr.update_hint('slssteam', sls.managed_by)})" if sls.managed_by else ""
-        out.append(CheckResult(True, "Update available", f"installed={version} latest={latest}{how}", "warn"))
+        out.append(CheckResult(True, "Update available", f"have {version}, latest {latest}{how}", "warn"))
     else:
-        out.append(CheckResult(True, "SLS version", f"installed={version} latest={latest}", "ok"))
+        out.append(CheckResult(True, "SLS version", f"have {version}, latest {latest}", "ok"))
     return out
