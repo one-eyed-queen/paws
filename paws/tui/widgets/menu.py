@@ -35,8 +35,8 @@ class MenuItem(ListItem):
         glyph = f"{icon(self._icon_name)}  {label}"
         if self.disabled:
             return f"[dim s]{glyph}[/dim s]"
-        if self._hue is not None:
-            return f"[{tween(self._hue)}]{glyph}[/]"
+        if self._hue is not None:  # colour on the icon only: coloured words on a picture are hard to read
+            return f"[{tween(self._hue)}]{icon(self._icon_name)}[/]  [b #f2f5ff]{label}[/]"
         return glyph
 
     @property
@@ -62,7 +62,7 @@ class MenuItem(ListItem):
         width = self.content_size.width
         if not self._hint or width <= 0 or self._compact():
             return left
-        colour = "#dbe4ff" if self.has_class("-highlight") else "#9db0e0"
+        colour = "#ffffff" if self.has_class("-highlight") else "#c9d4f2"
         right = Text.from_markup(f"[{colour}]{self._hint}[/]")
         gap = width - left.cell_len - right.cell_len
         if gap < 2:

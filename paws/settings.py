@@ -23,6 +23,7 @@ DEFAULTS: dict = {
     "auto_update": True,
     "auto_add_games": True,
     "colorblind": "off",
+    "live_update": False,
     "colorblind_kind": "deuteranopia",
     "update_interval_min": 5,
 }

@@ -23,6 +23,7 @@ PAINT_WAIT = 0.3  # a cached picture is ready instantly: give the new screen tim
 SETTLE_AFTER = (0.3, 0.8, 2.0)  # place it again soon after sending, so a placement lost in a screen change comes back
 RESEND_EVERY = 60.0
 WAIT = object()
+PANE_TINT = 0.74  # darker than the loading screen's: menus hold a lot more small text
 
 
 def wanted() -> bool:
@@ -118,7 +119,7 @@ def _picture(cols, rows, cell, box=None) -> bytes:
         else:
             from ..update.glass import compose as glass
 
-            picture = glass(cols, rows, box, cell, colours=False)
+            picture = glass(cols, rows, box, cell, colours=False, tint=PANE_TINT)
         png = png_bytes(colorblind.image(picture))
         while len(_pictures) >= 6:
             _pictures.pop(next(iter(_pictures)))

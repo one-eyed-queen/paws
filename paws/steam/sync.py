@@ -107,12 +107,25 @@ def _home_index() -> dict[str, Path]:
     return files_found
 
 
-def restore() -> dict:
-    """puts the missing keys and manifests back. returns what it did and what it couldn't find"""
+def restore(restart_steam: bool = False) -> dict:
+    """puts the missing keys and manifests back. returns what it did and what it couldn't find.
+    restart_steam: close steam first (the way its own quit does, so it saves its config before we write), then start
+    it again with SLSsteam. only ever done when the user asked for the fix, never by the background fixer"""
     from . import is_running, vdf
 
     if is_running():
-        return {"error": "steam is running"}
+        if not restart_steam:
+            return {"error": "steam is running"}
+        from .process import kill_steam
+
+        kill_steam(timeout=30.0)
+        if is_running():
+            return {"error": "steam didn't close"}
+        try:
+            result = restore()
+        finally:
+            _start_steam()
+        return result
     keys, manifests = missing()
     result = {"keys": 0, "manifests": 0, "not_found": []}
     if keys:
@@ -134,3 +147,14 @@ def restore() -> dict:
             keep_manifests([(d, manifests[d], p) for d, p in files.items()])
         result["not_found"] = sorted(set(manifests) - set(files))
     return result
+
+
+def _start_steam() -> None:
+    from ..sls.find import find_sls
+    from .find import find_steam
+    from .launch import launch
+
+    try:
+        launch(find_steam(), find_sls())
+    except Exception:
+        pass

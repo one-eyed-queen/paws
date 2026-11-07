@@ -50,7 +50,9 @@ def _cell_pixels() -> tuple[int, int]:
     return 10, 20
 
 
-def compose(cols: int, rows: int, box: tuple[int, int, int, int], cell: tuple[int, int], colours: bool = True):
+def compose(
+    cols: int, rows: int, box: tuple[int, int, int, int], cell: tuple[int, int], colours: bool = True, tint: float = TINT_AMOUNT
+):
     """the picture across the whole window, with a pane of frosted glass cut into it behind the text"""
     from PIL import Image, ImageDraw, ImageFilter
 
@@ -66,7 +68,7 @@ def compose(cols: int, rows: int, box: tuple[int, int, int, int], cell: tuple[in
     picture = big.crop((left, top, left + w, top + h))
     x, y, bw, bh = box[0] * cw, box[1] * ch, box[2] * cw, box[3] * ch
     pane = picture.crop((x, y, x + bw, y + bh)).filter(ImageFilter.GaussianBlur(BLUR))
-    pane = Image.blend(pane, Image.new("RGB", pane.size, TINT), TINT_AMOUNT)
+    pane = Image.blend(pane, Image.new("RGB", pane.size, TINT), tint)
     mask = Image.new("L", pane.size, 0)
     radius = min(cw, ch)
     ImageDraw.Draw(mask).rounded_rectangle((0, 0, bw - 1, bh - 1), radius, fill=255)

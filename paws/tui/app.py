@@ -82,6 +82,7 @@ class PawsApp(App):
         # which left quit hanging until ctrl+c. everything here is saved as it goes, so dying mid-way loses nothing
         self._fixer_busy = False
         self._start_fixer()
+        self.set_interval(LIVE_UPDATE_EVERY, self._live_update_check)
         self.run_doctor()
         self.set_interval(3.0, self._watch_config)
         self.push_screen(HomeScreen())
@@ -188,6 +189,37 @@ class PawsApp(App):
             repair.refresh_known_good()
         except Exception:
             pass
+
+    RESTART_CODE = 75
+
+    def restart(self):
+        """quits, and main() starts paws again in the same terminal"""
+        self.exit(return_code=self.RESTART_CODE)
+
+    _update_offered = None
+
+    def _live_update_check(self):
+        if not settings.get_setting("live_update") or self._update_offered:
+            return
+        threading.Thread(target=self._look_for_update, name="paws-live-update", daemon=True).start()
+
+    def _look_for_update(self):
+        from .. import update
+
+        try:
+            status = update.check()
+        except Exception:
+            return
+        if status.can_apply and self.is_running:
+            self.call_from_thread(self._offer_update, status)
+
+    def _offer_update(self, status):
+        from .widgets.modals import UpdatePopup
+
+        if self._update_offered:
+            return
+        self._update_offered = status
+        self.push_screen(UpdatePopup(status), lambda _done: setattr(self, "_update_offered", None))
 
     doctor_report = None
     doctor_at = 0.0
@@ -489,9 +521,20 @@ class PawsApp(App):
         self.set_class(rows < 30, "-short")
 
 
+LIVE_UPDATE_EVERY = 300.0
+
+
+def _start_again():
+    """a fresh process, same terminal: new code from an update loads properly this way"""
+    sys.stdout.flush()
+    os.execv(sys.executable, [sys.executable, "-m", "paws", *sys.argv[1:]])
+
+
 def main() -> int:
     app = PawsApp()
     app.run()
+    if app.return_code == PawsApp.RESTART_CODE:
+        _start_again()
     # the terminal is back to normal by now. leaving through python would still sit waiting on any lookup that's in
     # flight, and every write those make is atomic, so leave now
     if threading.active_count() > 1 and not os.environ.get("PAWS_HOLD"):

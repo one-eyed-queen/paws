@@ -209,3 +209,50 @@ class ModalPaste(ModalScreen[str]):
     @on(Button.Pressed, "#mp-cancel")
     def action_cancel(self):
         self.dismiss(None)
+
+
+class UpdatePopup(ModalScreen[bool]):
+    """a newer paws is out: update and restart, or not now. it goes away by itself once the work is done"""
+
+    BINDINGS = [Binding("escape", "later", "later")]
+
+    def __init__(self, status, **kwargs):
+        super().__init__(**kwargs)
+        self.status = status
+
+    def compose(self):
+        from ...update import git
+
+        lines = [f"{git.short(self.status.local)} -> {git.short(self.status.remote)}"]
+        lines += [f"+ {subject}" for subject in self.status.subjects[:4]]
+        with Container(id="modal-info"):
+            yield Label("[b]paws update ready[/b]", id="mn-title")
+            yield Label("\n".join(lines), id="mn-text", markup=False)
+            with Horizontal(id="mn-buttons"):
+                yield Button("Later", id="up-later")
+                yield Button("Update and restart", variant="primary", id="up-go")
+
+    def on_mount(self):
+        self.query_one("#up-go", Button).focus()
+
+    @on(Button.Pressed, "#up-later")
+    def action_later(self):
+        self.dismiss(False)
+
+    @on(Button.Pressed, "#up-go")
+    def _go(self):
+        from ... import update
+
+        for button in self.query(Button):
+            button.disabled = True
+        self.query_one("#mn-text", Label).update("updating, paws restarts by itself when it's done...")
+        self.app.run_job("updating paws", lambda progress: update.apply(self.status), self._done)
+
+    def _done(self, result):
+        if isinstance(result, Exception) or getattr(result, "state", "") != "updated":
+            message = str(result) if isinstance(result, Exception) else getattr(result, "message", "update failed")
+            self.app.tell("paws update failed", message, "error")
+            self.dismiss(False)
+            return
+        self.dismiss(True)
+        self.app.restart()

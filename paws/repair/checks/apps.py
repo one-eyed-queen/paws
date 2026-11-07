@@ -235,9 +235,9 @@ def check_steam_sync(config_path: Path) -> list[Problem]:
         return []
 
     def fix() -> str:
-        result = restore()
-        if result.get("error") == "steam is running":
-            return "close steam first: it rewrites config.vdf on exit and would drop the keys again. nothing changed"
+        result = restore(restart_steam=True)
+        if result.get("error") == "steam didn't close":
+            return "steam didn't close, so nothing changed. quit it from its own menu and run the fix again"
         if result.get("error"):
             return f"couldn't write config.vdf: {result['error']}"
         lost = result.get("not_found") or []
@@ -251,7 +251,7 @@ def check_steam_sync(config_path: Path) -> list[Problem]:
             f"steam is missing {len(keys)} key(s) and {len(manifests)} manifest(s) from your config",
             "steam was moved or reinstalled, so games show 0 B and won't download. "
             f"the keys come from config.yaml; {findable} of the {len(manifests)} manifest(s) can be found on this pc",
-            "put them back into steam's config.vdf and depotcache (steam has to be closed)",
+            "close steam, put them back into its config.vdf and depotcache, start steam again",
             fix,
             "error",
         )

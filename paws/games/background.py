@@ -130,7 +130,13 @@ def run(report=None) -> list[str]:
         pass
     try:  # steam moved or reinstalled: its keys and manifests back from config.yaml and paws' copy
         put_back = restore()
-        if put_back.get("keys") or put_back.get("manifests"):
+        if put_back.get("error") == "steam is running":
+            from ..steam.sync import missing
+
+            keys, manifests = missing()
+            if keys or manifests:
+                added.append("steam is missing download keys: Status / Doctor > Repair fixes it (restarts steam)")
+        elif put_back.get("keys") or put_back.get("manifests"):
             added.append(f"{put_back['keys']} key(s) and {put_back['manifests']} manifest(s) back in steam")
     except Exception:
         pass
