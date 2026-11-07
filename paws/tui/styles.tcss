@@ -88,6 +88,7 @@ AsciiPanel {
     height: 1fr;
     background: transparent;  /* the glass pane is in the picture behind it */
     padding: 0;
+    align: center middle;  /* the menu box hugs its items and floats centred, no dead space in a tall border */
 }
 
 #menu-panel-title {
@@ -100,18 +101,21 @@ AsciiPanel {
 }
 
 #menu-body {
-    height: 1fr;
+    height: auto;  /* just as tall as the menu + detail, so the panel centres instead of stretching a half-empty box */
+    width: 1fr;
 }
 
 #menu-body > #menu {
     width: 1fr;
+    height: auto;  /* border hugs the items */
     border: solid #3d4f80;
     background: transparent;
 }
 
 #menu-detail {
     width: 40;
-    height: 100%;
+    height: auto;
+    min-height: 14;  /* keeps the centred block a sensible height when the selected item's blurb is short */
     padding: 1 2;
     color: #dbe4ff;
     text-wrap: wrap;

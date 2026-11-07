@@ -1,15 +1,39 @@
 from __future__ import annotations
 
+from textual.message import Message
 from textual.widgets import Static
 
 
+def spacing_text(info, sizes: bool = True) -> str:
+    """zoom, char spacing and line spacing of a drawn piece of art. the spacing is the terminal's cell: one braille
+    character (2x4 dots) per cell, so that's the gap between characters and between lines on screen"""
+    from .hires import cell
+
+    w, h, shown_w, shown_h, zoom = info
+    cw, ch = cell()
+    size = f"{w}x{h}" if (w, h) == (shown_w, shown_h) else f"{w}x{h} → {shown_w}x{shown_h}"
+    zoomed = f"zoom {round(zoom * 100)}%" + (f" ({size})" if sizes else "")
+    return f"{zoomed} · char space {round(cw)}px · line space {round(ch)}px"
+
+
 class AsciiPanel(Static):
+    class Drawn(Message):
+        """the art was (re)drawn: a new piece, or the same one at a new size"""
+
+        def __init__(self, panel: "AsciiPanel"):
+            super().__init__()
+            self.panel = panel
+
     def __init__(self, art_name: str | None = None, **kwargs):
         super().__init__(markup=True, **kwargs)
         self._art_name: str | None = None
         self._drawn: tuple | None = None
+        self.info: tuple[int, int, int, int, float] | None = None
         if art_name:
             self.show(art_name)
+
+    def spacing(self, sizes: bool = True) -> str:
+        return spacing_text(self.info, sizes) if self.info and self.info[0] else ""
 
     def pending(self, name: str, art=None):
         self._art_name = name
@@ -24,10 +48,12 @@ class AsciiPanel(Static):
         self._drawn = None
         return self._draw()
 
-    def show_fitted(self, name: str, text: str, key: tuple):
+    def show_fitted(self, name: str, text: str, key: tuple, info=None):
         self._art_name = name
         self._drawn = key
+        self.info = info
         self.update(text)
+        self.post_message(self.Drawn(self))
 
     def _draw(self):
         from ... import art
@@ -47,9 +73,12 @@ class AsciiPanel(Static):
         if chosen is not None and chosen.lines:
             self.update("\n".join(art.display_fit(chosen, size.width, size.height)))
             self._drawn = key
+            self.info = art.fit_info(chosen, size.width, size.height)
+            self.post_message(self.Drawn(self))
             return True
         self.update("")
         self._drawn = key
+        self.info = None
         return False
 
     def on_mount(self):

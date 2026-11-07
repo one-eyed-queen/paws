@@ -2,7 +2,7 @@ from __future__ import annotations
 
 
 from .dirs import BUNDLED_DIR, user_art_dir
-from .fit import fit
+from .fit import fit, fit_info as _fit_info
 from .model import Art
 from .parse import escape_markup, markup_lines, parse_art, plain_lines
 
@@ -108,6 +108,10 @@ def library(nsfw: bool | None = None) -> dict[str, Art]:
 def display_lines(art: Art) -> list[str]:
     src = markup_lines(art) if art.colored else plain_lines(art)
     return [escape_markup(l) for l in src]
+
+
+def fit_info(art: Art, cols: int | None, rows: int | None) -> tuple[int, int, int, int, float]:
+    return _fit_info(plain_lines(art), cols, rows)
 
 
 def display_fit(art: Art, cols: int | None, rows: int | None) -> list[str]:

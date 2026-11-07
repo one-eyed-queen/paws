@@ -143,6 +143,10 @@ class HomeScreen(Screen):
     def on_resize(self, event):
         self._size_home()
 
+    def on_ascii_panel_drawn(self, event):
+        if event.panel.id == "art-home":
+            self._render_status()
+
     def _render_detail(self, item=None):
         if item is not None:
             self._detail_item = item
@@ -162,7 +166,11 @@ class HomeScreen(Screen):
         if getattr(self, "_show_latest", True):
             parts.insert(min(2, len(parts)), f"[#9db0e0]latest release: {getattr(self, '_latest', 'checking…')}[/]")
         if getattr(self, "_last_art", None):
-            parts.append(f"[#9db0e0]banner: {self._last_art}[/]")
+            spacing = ""
+            panels = self.query("#art-home")
+            if panels:
+                spacing = panels.first(AsciiPanel).spacing(sizes=False)  # one line under the menu
+            parts.append(f"[#9db0e0]banner: {self._last_art}" + (f" · {spacing}" if spacing else "") + "[/]")
         parts.append(
             "[#9db0e0]⚖ Source-available © 2026 ken (kaneki ken) / Anteiku - no resale, no rebrand, no AI training[/]"
         )

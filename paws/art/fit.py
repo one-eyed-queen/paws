@@ -128,3 +128,16 @@ def _fit_cached(lines, cols, rows):
 
 def fit(lines: list[str], cols: int | None, rows: int | None) -> list[str]:
     return list(_fit_cached(tuple(lines), cols, rows))
+
+
+def fit_info(lines: list[str], cols: int | None, rows: int | None) -> tuple[int, int, int, int, float]:
+    """(art cols, art rows, shown cols, shown rows, zoom) for art drawn into cols x rows. zoom is the scale fit()
+    applies: 1.0 means drawn as is, it never zooms in"""
+    trimmed = trim(list(lines))
+    if not trimmed:
+        return 0, 0, 0, 0, 1.0
+    w, h = size(trimmed)
+    shown_w, shown_h = size(fit(lines, cols, rows))
+    cols = w if not cols or cols <= 0 else cols
+    rows = h if not rows or rows <= 0 else rows
+    return w, h, shown_w, shown_h, min(cols / w, rows / h, 1.0)

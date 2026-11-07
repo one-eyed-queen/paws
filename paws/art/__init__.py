@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from .banner import banner_name, set_banner
 from .dirs import BUNDLED_DIR, DATA_DIR, HOME, PALETTES_FILE, user_art_dir, user_cfg_dir
-from .library import display_fit, display_lines, library
+from .library import display_fit, display_lines, fit_info, library
 from .model import PH_RE, Art
 from .palette import DEFAULT_PALETTE
 from .parse import markup_lines, parse_art, plain_lines, token_for
@@ -29,6 +29,7 @@ __all__ = [
     "library",
     "display_lines",
     "display_fit",
+    "fit_info",
     "PH_RE",
     "Art",
     "DEFAULT_PALETTE",

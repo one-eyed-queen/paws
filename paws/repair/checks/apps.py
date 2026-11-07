@@ -244,9 +244,9 @@ def check_public_build(config_path: Path) -> list[Problem]:
         Problem(
             "sls.public-no-downloads",
             f"{len(names)} game(s) show in steam but can't download (0 B)",
-            f"{', '.join(names[:6])}. the installed SLSsteam is the public build: it adds games to the library, it can't "
-            "download them. downloading needs the private build (it reads AdditionalPackages and DecryptionKeys)",
-            "install the private build with Install / Update SLSsteam; paws then switches these games over by itself",
+            f"{', '.join(names[:6])}. the installed SLSsteam is the public build: it adds games to the library but "
+            "doesn't download them, so steam shows 0 B. that's the build, not your config - nothing here is broken",
+            "this isn't a config error paws can fix; 0 B is expected on the public build",
             None,
             "info",
         )

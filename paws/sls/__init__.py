@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from . import headcrab, plugins
+from . import family, headcrab, plugins
 from .activation import DEFAULT_TIMEOUT, activate, ensure_subscribed
 from .api import API_PATH, write_api_command
 from .archive import extract_archive
@@ -73,6 +73,7 @@ __all__ = [
     "find_sls",
     "github_releases",
     "headcrab",
+    "family",
     "install_port",
     "install_release",
     "installed_tag",

@@ -65,7 +65,7 @@ def sls_checks(sls) -> list:
     headcrab = sls_module.headcrab.footprint()
     if not sls and not headcrab:
         return [
-            CheckResult(False, "No SLSsteam or HeadCrab found", "install one from Install / Update SLSsteam", "error"),
+            CheckResult(False, "No SLSsteam found", "install one from Install / Update SLSsteam (SLSsteam, HeadCrab and Hollow are the same engine under different names)", "error"),
             CheckResult(False, "SLSsteam NOT installed", "use Install/Update SLSsteam", "warn"),
         ]
     if not sls:
@@ -89,7 +89,10 @@ def sls_checks(sls) -> list:
         )
     ]
     if headcrab:
-        out.append(CheckResult(True, "HeadCrab found", f"{len(headcrab)} thing(s) of it on this machine", "info"))
+        out.append(CheckResult(True, "HeadCrab found", f"{len(headcrab)} thing(s) of it on this machine (it's an SLSsteam build)", "info"))
+    deck = sls_module.family.decky_tools()
+    if deck:
+        out.append(CheckResult(True, "Steam Deck / Decky SLSsteam tools", ", ".join(deck) + " - front-ends for the same SLSsteam config", "info"))
     if sls.desktop_used:
         out.append(CheckResult(True, "LD_AUDIT wired", "a launcher (.desktop) injects SLSsteam", "ok"))
     version = sls_module.installed_version(sls)

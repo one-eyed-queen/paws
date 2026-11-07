@@ -70,11 +70,7 @@ class ArtScreen(Screen):
     def _show(self, key):
         self._current = key
         piece = self.arts.get(key)
-        rows = len(piece.lines) if piece else 0
-        cols = max((len(line) for line in piece.lines), default=0) if piece else 0
-        now = art.banner_name()
-        tag = "  [#ffd75f]★ home banner[/]" if key == now else ""
-        self.query_one("#art-info", Static).update(f"[b]{key}[/b]  [#9db0e0]{cols}x{rows}[/]{tag}")
+        self._info_line(key)
         self.query_one("#art-preview", AsciiPanel).pending(key, piece)
         self._draw_preview(key, piece)
 
@@ -87,12 +83,26 @@ class ArtScreen(Screen):
         chosen = piece if (piece and piece.lines) else self.arts.get("placeholder.txt")
         drawn_key = (key, size.width, size.height)
         text = "\n".join(art.display_fit(chosen, size.width, size.height)) if chosen else "[#9db0e0]no art[/]"
-        self.app.call_from_thread(self._apply_preview, key, text, drawn_key)
+        info = art.fit_info(chosen, size.width, size.height) if chosen else None
+        self.app.call_from_thread(self._apply_preview, key, text, drawn_key, info)
 
-    def _apply_preview(self, key, text, drawn_key):
+    def _apply_preview(self, key, text, drawn_key, info=None):
         if key != self._current or not self.is_attached:
             return
-        self.query_one("#art-preview", AsciiPanel).show_fitted(key, text, drawn_key)
+        self.query_one("#art-preview", AsciiPanel).show_fitted(key, text, drawn_key, info)
+
+    def on_ascii_panel_drawn(self, event):
+        if event.panel.id != "art-preview" or not self._current:
+            return
+        self._info_line(self._current, event.panel.spacing())
+
+    def _info_line(self, key, spacing=""):
+        piece = self.arts.get(key)
+        rows = len(piece.lines) if piece else 0
+        cols = max((len(line) for line in piece.lines), default=0) if piece else 0
+        tag = "  [#ffd75f]★ home banner[/]" if key == art.banner_name() else ""
+        detail = spacing or f"{cols}x{rows}"
+        self.query_one("#art-info", Static).update(f"[b]{key}[/b]  [#9db0e0]{detail}[/]{tag}")
 
     def _label(self, key, now):
         a = self.arts[key]
