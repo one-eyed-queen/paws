@@ -3,7 +3,7 @@
 </p>
 
 <h1 align="center">paws</h1>
-<p align="center"><b>v3.5.127</b> - public release version numbers: the last number (X.Y.<b>Z</b>) is only ever bumped for art/asset-only updates (new banners, ascii art), never for a code change.</p>
+<p align="center"><b>v3.6.127</b> - public release version numbers: the last number (X.Y.<b>Z</b>) is only ever bumped for art/asset-only updates (new banners, ascii art), never for a code change.</p>
 
 <!--
   no crawler / no AI training, machine readable:
