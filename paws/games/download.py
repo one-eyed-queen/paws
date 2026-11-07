@@ -22,7 +22,7 @@ _SUPPORT: dict = {}
 
 def packages_supported() -> bool:
     """does the installed SLSsteam read AdditionalPackages? asked of the .so itself: a build that reads a key has its
-    name in the binary (the public build 20261014151919 has AdditionalApps/AppIds/ManifestIds and no
+    name in the binary (the public build has AdditionalApps/AppIds/ManifestIds and no
     AdditionalPackages or DecryptionKeys). its res/config.yaml template isn't proof either way"""
     try:
         from ..sls.find import find_sls
@@ -30,10 +30,11 @@ def packages_supported() -> bool:
         sls = find_sls()
         so = Path(sls.sls_so) if sls and sls.sls_so else None
         if so is None or not so.is_file():
-            return False
+            return False  # a config alone says nothing about the build, and unblock() takes rows out on a yes
         stamp = (str(so), so.stat().st_mtime_ns)
         if stamp not in _SUPPORT:
-            _SUPPORT[stamp] = b"AdditionalPackages" in so.read_bytes()
+            content = so.read_bytes()
+            _SUPPORT[stamp] = b"AdditionalPackages" in content or b"DecryptionKeys" in content
         return _SUPPORT[stamp]
     except Exception:
         return False

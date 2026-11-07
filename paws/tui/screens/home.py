@@ -179,6 +179,16 @@ class HomeScreen(Screen):
     def _shown_entries(self):
         return [e for e in self.HOME_MENU if e[0] in ("settings", "quit") or not settings.is_disabled(e[0])]
 
+    def _dynamic_hint(self, key: str, sls=None, data=None) -> str:
+        """cheap live hints only: this runs every time the menu is built, so nothing that scans or hits the network"""
+        if key == "remove" and data is not None:
+            n = len(data.get("AppIds") or [])
+            return f"{n} added" if n else self.HINTS.get(key, "")
+        if key == "sls" and sls:
+            ver = sls_module.installed_version(sls)
+            return f"have {ver}" if ver else "installed"
+        return self.HINTS.get(key, "")
+
     def _build_menu(self):
         menu = self.query_one("#menu", Menu)
         entries = self._shown_entries()
@@ -190,9 +200,16 @@ class HomeScreen(Screen):
         current_index = menu.index
         menu.remove_children()
         n = len(entries)
+        sls = find_sls()
+        try:
+            from ...config import parsed
+
+            data = parsed() or {}
+        except Exception:
+            data = None
         menu.extend(
             [
-                MenuItem(key, label, desc, icon, hue=i / max(n - 1, 1), hint=self.HINTS.get(key, ""))
+                MenuItem(key, label, desc, icon, hue=i / max(n - 1, 1), hint=self._dynamic_hint(key, sls, data))
                 for i, (key, label, desc, icon) in enumerate(entries)
             ]
         )

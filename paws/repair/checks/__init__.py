@@ -5,7 +5,14 @@ from ...util import backup
 from ..model import Problem
 from ._shared import move_aside
 from .api_pipe import check_api_pipe
-from .apps import check_additional_apps, check_additional_packages, check_downloads_blocked, check_public_build, check_steam_sync
+from .apps import (
+    check_additional_apps,
+    check_additional_packages,
+    check_disable_updates_0b,
+    check_downloads_blocked,
+    check_public_build,
+    check_steam_sync,
+)
 from .config import (
     check_config_broken,
     check_config_dupes,
@@ -77,6 +84,7 @@ def scan(online: bool = False) -> list[Problem]:
         out += check_config_permissions(config_path)
         out += check_additional_apps(config_path)
         out += check_downloads_blocked(config_path)
+        out += check_disable_updates_0b(config_path)
         out += check_public_build(config_path)
         out += check_steam_sync(config_path)
         if online:  # asks the store about every package, so only for `paws fix`

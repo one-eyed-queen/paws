@@ -253,6 +253,61 @@ def check_public_build(config_path: Path) -> list[Problem]:
     ]
 
 
+def check_disable_updates_0b(config_path: Path) -> list[Problem]:
+    """DisableUpdates: yes with AdditionalApps rows hides update info for those games, so they sit at 0 B.
+    only on a build that can download (on public 0 B is the build), and only for rows check_downloads_blocked
+    doesn't already move to a store package"""
+    import yaml
+
+    from ...config.tidy import split_comment
+    from ...games.download import ACTIVATION_NOTE, blocked_rows, packages_supported
+
+    text = safe_read(config_path)
+    if not text or not packages_supported():
+        return []
+    try:
+        data = yaml.safe_load(text) or {}
+    except Exception:
+        return []
+    if not isinstance(data, dict) or data.get("DisableUpdates") is not True:
+        return []
+    lines = text.splitlines()
+    idx = section_index(lines, "AdditionalApps")
+    if idx is None:
+        return []
+    covered = {i for i, _appid, _name in blocked_rows(text)}
+    apps = [
+        split_comment(lines[i])[1] or str(item_key(lines[i]))
+        for i in range(idx + 1, block_end_line(lines, idx))
+        if i not in covered and _code_part(lines[i]).strip() and not split_comment(lines[i])[1].startswith(ACTIVATION_NOTE)
+    ]
+    if not apps:
+        return []
+
+    def fix() -> str:
+        import re
+
+        cur = safe_read(config_path) or ""
+        updated = re.sub(r"(?mi)^(DisableUpdates:\s*)(?:yes|true|on)\b", r"\g<1>no", cur)
+        if updated == cur:
+            return "DisableUpdates is already off, nothing changed"
+        backup.backup_file(config_path)
+        write_now(config_path, updated)
+        return "DisableUpdates is off now, so steam fetches update info for these games again; backup kept"
+
+    return [
+        Problem(
+            "config.disable-updates-0b",
+            f"{len(apps)} game(s) at 0 B because DisableUpdates is on",
+            f"{', '.join(apps[:6])}. with DisableUpdates on, SLSsteam hides steam's update info for AdditionalApps "
+            "games, so steam has nothing to download",
+            "turn DisableUpdates off (steam will update your other games again too)",
+            fix,
+            "warn",
+        )
+    ]
+
+
 def check_steam_sync(config_path: Path) -> list[Problem]:
     """keys or manifests config.yaml has and steam doesn't: every game they belong to shows 0 B"""
     from ...steam.sync import find_files, missing, restore

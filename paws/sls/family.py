@@ -14,43 +14,62 @@ from ..paths import HOME
 # name -> one-line "what it is", SLSsteam first because it's the engine the rest are built on
 KNOWN: dict[str, str] = {
     "SLSsteam": "the engine paws installs and injects (the .so)",
-    "HeadCrab": "an SLSsteam build that ships its own installer",
-    "Hollow": "an SLSsteam build (HollowSteam)",
-    "hollow-decky": "Steam Deck / Game Mode front-end for SLSsteam",
+    "HeadCrab": "an SLSsteam build that ships its own installer and in-client downloads",
+    "Hollow": "an SLSsteam build (HollowSteam) with auto ticket/key fetching",
+    "hollow-decky": "Steam Deck / Game Mode front-end for HollowSteam",
     "SLSConfig-Decky": "Steam Deck / Game Mode editor for the SLSsteam config",
+    "slsconfigurator": "Terminal UI for configuring SLSsteam (by petar / xamionex)",
+    "TOST": "OpenSteamTool Companion Toolkit GUI by sadabx",
+    "tachilabs": "Tachilabs CLI tools and manager",
 }
-
-# other editors of the same config.yaml, by the command they put on PATH
-COMPANIONS: dict[str, str] = {
-    "slsconfigurator": "a TUI that edits the SLSsteam config",
-}
-
-
-def companions() -> list[str]:
-    import shutil
-
-    return [name for name in COMPANIONS if shutil.which(name)]
 
 # Decky Loader keeps its plugins here; the SLSsteam-family ones edit the same config paws does
-DECKY_PLUGINS = HOME / "homebrew" / "plugins"
+DECKY_DIRS = (
+    HOME / "homebrew" / "plugins",
+    Path("/home/deck/homebrew/plugins"),
+    Path("/homebrew/plugins"),
+)
 _MARKERS = ("hollow", "slsconfig", "headcrab", "sls")
 
 
 def decky_tools() -> list[str]:
     """SLSsteam-family Decky / Steam Deck plugins installed on this machine, by folder name"""
     found: list[str] = []
-    try:
-        entries = sorted(DECKY_PLUGINS.iterdir()) if DECKY_PLUGINS.is_dir() else []
-    except OSError:
-        return found
-    for p in entries:
-        if any(m in p.name.lower() for m in _MARKERS):
-            found.append(p.name)
+    seen = set()
+    for d in DECKY_DIRS:
+        try:
+            entries = sorted(d.iterdir()) if d.is_dir() else []
+        except OSError:
+            continue
+        for p in entries:
+            name = p.name
+            if name not in seen and any(m in name.lower() for m in _MARKERS):
+                seen.add(name)
+                found.append(name)
     return found
 
 
+def companion_tools() -> list[str]:
+    """companion managers and tools detected on the system (TOST, slsconfigurator, tachilabs)"""
+    import shutil
+
+    tools: list[str] = []
+    # TOST
+    for p in (HOME / ".config/TOST", HOME / "TOST", HOME / ".local/share/TOST", Path("/home/deck/TOST")):
+        if p.exists():
+            tools.append("TOST")
+            break
+    # slsconfigurator
+    if shutil.which("slsconfigurator") or (HOME / ".local/bin/slsconfigurator").exists():
+        tools.append("slsconfigurator")
+    # tachilabs
+    if (Path("/tmp/tachilabs.sh")).exists() or (HOME / ".local/share/tachilabs").exists():
+        tools.append("tachilabs")
+    return tools
+
+
 def present() -> list[str]:
-    """named SLSsteam-family tools found beyond the core .so (so Doctor can say it recognises them)"""
+    """named SLSsteam-family tools found beyond the core .so (so Doctor and Home can say it recognises them)"""
     from . import headcrab
 
     names: list[str] = []
@@ -60,4 +79,5 @@ def present() -> list[str]:
     except Exception:
         pass
     names += decky_tools()
+    names += companion_tools()
     return names

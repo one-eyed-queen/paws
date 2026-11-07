@@ -3,6 +3,7 @@ from __future__ import annotations
 from rich.text import Text
 from textual import on, work
 from textual.app import ComposeResult
+from textual.containers import Horizontal
 from textual.screen import Screen
 from textual.widgets import ListItem, Static
 
@@ -56,6 +57,14 @@ class SectionRow(ListItem):
 class SettingsScreen(Screen):
     DEFAULT_CLASSES = "page"
 
+    # tab name -> the section headings it shows (empty: all of them)
+    CATEGORIES = (
+        ("All", ()),
+        ("Look", ("Colour blind", "Look")),
+        ("Startup", ("Startup and updates", "Notifications", "Terminal and launcher")),
+        ("Home menu", ("Home menu",)),
+    )
+
     BINDINGS = [
         ("escape", "pop", "back"),
         ("backspace", "pop", "back"),
@@ -63,18 +72,42 @@ class SettingsScreen(Screen):
         ("right", "step(1)", "next choice"),
         ("[", "prev_section", "prev section"),
         ("]", "next_section", "next section"),
+        ("1", "goto_category(0)", "All"),
+        ("2", "goto_category(1)", "Look"),
+        ("3", "goto_category(2)", "Startup"),
+        ("4", "goto_category(3)", "Home menu"),
+        ("tab", "next_category", "next tab"),
+        ("shift+tab", "prev_category", "previous tab"),
     ]
 
     def __init__(self, start="colorblind_on", **kwargs):
         super().__init__(**kwargs)
         self.start = start
+        self._cat = 0
 
     def compose(self) -> ComposeResult:
         yield AppHeader("Settings", id="hdr")
+        with Horizontal(id="set-nav-bar"):
+            for i, (name, _titles) in enumerate(self.CATEGORIES):
+                yield Static(f"[b #5ff0a0]{i + 1}[/] {name}", id=f"nav-{i}", classes="set-tab" + (" -active" if i == 0 else ""))
         yield Menu(id="set-menu", classes="panel")
         yield Static("", id="set-out", classes="panel")
-        yield FooterHelp("↑↓ move · [ ] jump section · enter or space changes · ← → steps through choices · esc back")
+        yield FooterHelp("1-4 or tab: tabs · [ ] sections · ↑↓ move · enter/space change · ← → choices · esc back")
         yield JobBar(id="job")
+
+    def action_goto_category(self, index: int):
+        if not 0 <= index < len(self.CATEGORIES) or index == self._cat:
+            return
+        self._cat = index
+        for i in range(len(self.CATEGORIES)):
+            self.query_one(f"#nav-{i}", Static).set_class(i == index, "-active")
+        self.rebuild()
+
+    def action_next_category(self):
+        self.action_goto_category((self._cat + 1) % len(self.CATEGORIES))
+
+    def action_prev_category(self):
+        self.action_goto_category((self._cat - 1) % len(self.CATEGORIES))
 
     def on_mount(self):
         self._rows_now = ()
@@ -159,7 +192,12 @@ class SettingsScreen(Screen):
             if not (minimal and f in settings.RICED_ONLY) and not settings.hidden_for_now(f)
         ]
         out.append(("Home menu", features))
-        return [(title, [r for r in rows if not (minimal and r[0] in RICED_ROWS)]) for title, rows in out]
+        shown = self.CATEGORIES[self._cat][1]
+        return [
+            (title, [r for r in rows if not (minimal and r[0] in RICED_ROWS)])
+            for title, rows in out
+            if not shown or title in shown
+        ]
 
     def rebuild(self, keep=None):
         """only what changed gets redrawn. tearing the whole list down on every toggle is what made this page lag"""
@@ -173,7 +211,7 @@ class SettingsScreen(Screen):
                 menu.append(SectionRow(title))
                 for key, label, control, desc, icon_name in rows:
                     menu.append(MenuItem(key, label, desc, icon_name, hint=control))
-            index = next((i for i, row in enumerate(menu.children) if row.data == keep), 1)
+            index = next((i for i, row in enumerate(menu.children) if keep is not None and row.data == keep), 1)
             menu.focus()
             menu.call_after_refresh(lambda: restore_index(menu, index))
             return

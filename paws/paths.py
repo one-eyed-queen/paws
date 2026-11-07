@@ -5,7 +5,33 @@ from pathlib import Path
 
 from .windows import IS_WINDOWS
 
-HOME = Path.home()
+class _DynamicHome:
+    def __truediv__(self, other):
+        return Path.home() / other
+
+    def __rtruediv__(self, other):
+        return Path(other) / Path.home()
+
+    def __str__(self):
+        return str(Path.home())
+
+    def __fspath__(self):
+        return str(Path.home())
+
+    def __repr__(self):
+        return repr(Path.home())
+
+    def __getattr__(self, name):
+        return getattr(Path.home(), name)
+
+    def __eq__(self, other):
+        return Path.home() == other
+
+    def __hash__(self):
+        return hash(Path.home())
+
+
+HOME = _DynamicHome()
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
 

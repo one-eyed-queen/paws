@@ -1077,6 +1077,27 @@ SectionRow {
 #set-menu MenuItem {
     padding: 0 2 0 2;
 }
+#set-nav-bar {
+    height: 1;
+    margin: 0 2;
+}
+.set-tab {
+    width: auto;
+    padding: 0 2;
+    color: #9aa5c4;
+}
+.set-tab.-active {
+    color: #ffffff;
+    background: #1a2a4d;
+    text-style: bold;
+}
+.-minimal .set-tab {
+    color: ansi_default;
+}
+.-minimal .set-tab.-active {
+    background: transparent;
+    text-style: bold reverse;
+}
 
 
 /* ---- toasts on home: bottom left, over the banner art, not over the status lines on the right ---- */

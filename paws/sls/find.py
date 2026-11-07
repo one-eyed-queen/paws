@@ -113,9 +113,11 @@ def find_all(config: Path | None = None) -> list[SlsInstall]:
 def _install_dirs() -> list[Path]:
     return [
         HOME / ".local/share/SLSsteam",
+        Path("/home/deck/.local/share/SLSsteam"),
         Path("/var/lib/flatpak/app/com.valvesoftware.Steam/data/.local/share/SLSsteam"),
         HOME / ".var/app/com.valvesoftware.Steam/.local/share/SLSsteam",
         HOME / "SLSsteam",
+        Path("/usr/local/lib/SLSsteam"),
     ]
 
 
