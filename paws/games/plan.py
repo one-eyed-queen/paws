@@ -60,7 +60,9 @@ class GamePlan:
             # AppIds is the whitelist entry the game and each of its DLC need once AdditionalApps
             # has injected it; without UseWhitelist: yes a blacklist would exclude them instead
             out.append(Change("config.yaml", "add", f"AppIds     {a}"))
-        for p in self.packages:
+        from .download import build_reads
+
+        for p in self.packages if build_reads("AdditionalPackages") else ():  # public build: does nothing there
             out.append(Change("config.yaml", "add", f"AdditionalPackages {p}"))
         for d in self.decryption_keys:
             out.append(Change("config.vdf", "add", f"DecryptionKey      {d}"))

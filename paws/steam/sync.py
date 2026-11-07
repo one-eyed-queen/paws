@@ -37,12 +37,43 @@ def keep_manifests(files) -> None:
         pass
 
 
+def _keys_file() -> Path:
+    return store().parent / "depot-keys.json"
+
+
+def stored_keys() -> dict[str, str]:
+    import json
+
+    try:
+        return {str(d): str(k) for d, k in json.loads(_keys_file().read_text()).items()}
+    except (OSError, ValueError, AttributeError):
+        return {}
+
+
+def remember_keys(keys: dict) -> None:
+    """depot keys kept by paws itself: the public build has no DecryptionKeys section, and steam forgets config.vdf
+    when it's moved or reinstalled. this is what puts them back"""
+    import json
+
+    have = stored_keys()
+    new = {str(d): str(k) for d, k in keys.items() if k and have.get(str(d)) != str(k)}
+    if not new:
+        return
+    have.update(new)
+    path = _keys_file()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(have, indent=1, sort_keys=True))
+    tmp.chmod(0o600)
+    tmp.replace(path)
+
+
 def wanted() -> tuple[dict[str, str], dict[str, str]]:
-    """(depot -> key, depot -> manifest) from config.yaml"""
+    """(depot -> key, depot -> manifest): config.yaml's lists plus the keys paws keeps itself"""
     from ..config import parsed
 
     data = parsed() or {}
-    keys = {str(d): str(k).strip('"') for d, k in (data.get("DecryptionKeys") or {}).items() if k}
+    keys = stored_keys() | {str(d): str(k).strip('"') for d, k in (data.get("DecryptionKeys") or {}).items() if k}
     manifests = {str(d): str(m) for d, m in (data.get("ManifestIds") or {}).items() if m}
     return keys, manifests
 

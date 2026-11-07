@@ -91,7 +91,7 @@ cfg.write_text("UseWhitelist: yes\nAppIds:\nAdditionalApps:\nManifestIds:\n  621
 added, nudge = bg()
 data = yaml.safe_load(cfg.read_text())
 check("start adds the game", added, ["Portal 2"])
-check("no AdditionalApps row (it means 0 B)", data["AdditionalApps"], None)
+check("AdditionalApps row (build without AdditionalPackages)", data["AdditionalApps"], [620])
 check("AppIds row", data["AppIds"], [620])
 check("package row", data["AdditionalPackages"], [7877])
 check("named", "- 620 # Portal 2" in cfg.read_text())

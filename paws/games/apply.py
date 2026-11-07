@@ -41,9 +41,14 @@ def apply_plan(plan: GamePlan, *, checked: set[str] | None = None, nudge: bool =
                         # config.vdf: a private build can use it to resolve the current
                         # manifest for a depot itself, instead of needing a pinned ManifestIds
                         # value that goes stale the moment the depot updates
-                        key_line = config.render_item("DecryptionKeys", id=depot, key=key, name=name)
-                        if config.add_entry("DecryptionKeys", key_line)[0]:
-                            added.append(("DecryptionKeys", key_line))
+                        from ..steam.sync import remember_keys
+                        from .download import build_reads
+
+                        remember_keys({depot: key})  # public build: config.vdf is the only place it works
+                        if build_reads("DecryptionKeys"):
+                            key_line = config.render_item("DecryptionKeys", id=depot, key=key, name=name)
+                            if config.add_entry("DecryptionKeys", key_line)[0]:
+                                added.append(("DecryptionKeys", key_line))
                 elif c.target == "depotcache":
                     manifests.extend(m for m in plan.manifest_files if f"manifest_{m[0]}_{m[1]}" == c.detail)
                 applied += 1

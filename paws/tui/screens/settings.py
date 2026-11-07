@@ -129,7 +129,7 @@ class SettingsScreen(Screen):
                     ("auto_update", "Update on start", switch(get("auto_update")), f"look for a newer paws before the menu opens, at most once every {get('update_interval_min')} min", "settings"),
                     ("auto_add_games", "Live config fixer", switch(get("auto_add_games")), "quietly adds games that are in the config but weren't added properly, and names the rows. runs at start and whenever the config changes.", "settings"),
                     ("live_update", "Check for updates while running", switch(get("live_update")), "every few minutes while paws is open. when a new version is out a small popup offers to update and restart", "settings"),
-                    ("restart", "Restart paws", f"[{CYAN}]↻[/]", "close paws and open it again right here", "settings"),
+                    ("restart", "Restart paws", f"[{CYAN}]restart ›[/]", "close paws and open it again right here", "settings"),
                     ("check_update", "Check for an update now", f"[{CYAN}]v{__version__}[/]", "ask github now, even with auto-update off", "settings"),
                 ],
             ),

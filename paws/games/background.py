@@ -159,6 +159,14 @@ def run(report=None) -> list[str]:
 
     added = add_missing(report)
     try:
+        from .download import drop_private_sections
+
+        gone = drop_private_sections()
+        if gone:
+            added.append(f"removed {', '.join(gone)}: the public SLSsteam doesn't read them (keys kept for steam)")
+    except Exception:
+        pass
+    try:
         added += [f"{name} (download fixed)" for name in unblock()]
     except Exception:
         pass

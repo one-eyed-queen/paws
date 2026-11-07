@@ -223,6 +223,36 @@ def check_downloads_blocked(config_path: Path) -> list[Problem]:
     ]
 
 
+def check_public_build(config_path: Path) -> list[Problem]:
+    """public SLSsteam puts games in the library but can't download them: tell the user instead of a silent 0 B"""
+    from ...games.download import ACTIVATION_NOTE, known_build, packages_supported
+
+    if not known_build() or packages_supported():
+        return []
+    from ...config.lines import _code_part, block_end_line, item_key, section_index
+    from ...config.tidy import split_comment
+
+    lines = (safe_read(config_path) or "").splitlines()
+    index = section_index(lines, "AdditionalApps")
+    if index is None:
+        return []
+    names = [split_comment(l)[1] or str(item_key(l)) for l in lines[index + 1 : block_end_line(lines, index)]
+             if _code_part(l).strip() and not split_comment(l)[1].startswith(ACTIVATION_NOTE)]
+    if not names:
+        return []
+    return [
+        Problem(
+            "sls.public-no-downloads",
+            f"{len(names)} game(s) show in steam but can't download (0 B)",
+            f"{', '.join(names[:6])}. the installed SLSsteam is the public build: it adds games to the library, it can't "
+            "download them. downloading needs the private build (it reads AdditionalPackages and DecryptionKeys)",
+            "install the private build with Install / Update SLSsteam; paws then switches these games over by itself",
+            None,
+            "info",
+        )
+    ]
+
+
 def check_steam_sync(config_path: Path) -> list[Problem]:
     """keys or manifests config.yaml has and steam doesn't: every game they belong to shows 0 B"""
     from ...steam.sync import find_files, missing, restore

@@ -12,8 +12,11 @@ from .where import find_config
 
 def default_config_text() -> str:
     lines = ["# SLSsteam config (created by paws)", ""]
+    from ..games.download import build_reads
+
     for name in ordered_keys():
-        lines += _default_block(name)
+        if build_reads(name):  # a fresh public config doesn't get the private build's sections
+            lines += _default_block(name)
     return "\n".join(lines) + "\n"
 
 
@@ -34,7 +37,9 @@ def _default_block(name):
 def missing_keys(path: Path | None = None) -> list[str]:
     lines = raw_lines(path)
     present = {m.group(1) for l in lines if (m := re.match(r"^([A-Za-z]\w*):", l))}
-    return [k for k in ordered_keys() if k not in present]
+    from ..games.download import build_reads
+
+    return [k for k in ordered_keys() if k not in present and build_reads(k)]
 
 
 def fill_missing(path: Path | None = None) -> list[str]:

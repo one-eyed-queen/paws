@@ -81,13 +81,18 @@ class SectionsScreen(Screen):
     async def _fill_list(self, needle, keep=None):
         menu = self.query_one("#sec-menu", Menu)
         needle = needle.strip().lower()
+        from ...games.download import build_reads
+
         keys = [
             k
             for k in ed.ordered_keys()
-            if not needle
-            or needle in k.lower()
-            or needle in ed.group_of(k).lower()
-            or needle in SECTIONS["sections"][k]["desc"].lower()
+            if build_reads(k)
+            and (
+                not needle
+                or needle in k.lower()
+                or needle in ed.group_of(k).lower()
+                or needle in SECTIONS["sections"][k]["desc"].lower()
+            )
         ]
         groups = [name for _tag, name in ed.GROUPS]
         await menu.clear()

@@ -3,7 +3,7 @@
 </p>
 
 <h1 align="center">paws</h1>
-<p align="center"><b>v3.6.127</b> - public release version numbers: the last number (X.Y.<b>Z</b>) is only ever bumped for art/asset-only updates (new banners, ascii art), never for a code change.</p>
+<p align="center"><b>v3.7.127</b> - public release version numbers: the last number (X.Y.<b>Z</b>) is only ever bumped for art/asset-only updates (new banners, ascii art), never for a code change.</p>
 
 <!--
   no crawler / no AI training, machine readable:
@@ -109,14 +109,26 @@ paws also **refuses to delete OpenValve's config** on uninstall: it sits in the 
 
 #### how to download games
 
-paws does all of this for u when u add a game, but this is what it writes in config.yaml so u know:
+paws does all of this for u when u add a game (drag and drop, add game, or the live fixer), and it checks which SLSsteam u actually have installed first, so it only ever writes settings ur build reads. this is what it writes so u know:
+
+**private build** (reads `AdditionalPackages` and `DecryptionKeys`), the only one that can download:
 
 1. the depot keys go in `DecryptionKeys:`, one line per key: `appid: "key"`
 2. the game's store package goes in `AdditionalPackages:`
 3. the game's base AppId goes in `AppIds:`
 4. `UseWhitelist:` is set to `yes` (needed whenever u use AppIds)
+5. no `AdditionalApps:` row: it overwrites the owner id and breaks the download
 
-these four are the same on linux and windows; the config format didn't change, so a bundle u drop into a linux install writes exactly what OpenValve expects.
+**public build** (github release): it puts games in ur library but **can't download them**, so they show 0 B. that's the build, not ur config. paws writes:
+
+1. the game's AppId in `AdditionalApps:` (that's what makes it show up) and in `AppIds:`
+2. the depot keys straight into steam's own `config.vdf` (public SLSsteam has no `DecryptionKeys:`), plus a copy paws keeps so they come back if steam moves or gets reinstalled
+3. the `.manifest` files into steam's depotcache, and `ManifestIds:` / `AppTokens:` / `DlcData:` as needed
+4. none of the private-only sections (`AdditionalPackages`, `DecryptionKeys`, `AdditionalDepots`, `CloudProxies`, `InventoryItems`). if ur config has them, the fixer moves their keys out and removes them
+
+every row gets the game's full name as a comment. `paws doctor` tells u which build u have and why a game is at 0 B.
+
+the private steps are the same on linux and windows; the config format didn't change, so a bundle u drop into a linux install writes exactly what OpenValve expects.
 
 </details>
 
