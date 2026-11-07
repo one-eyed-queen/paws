@@ -221,3 +221,38 @@ def check_downloads_blocked(config_path: Path) -> list[Problem]:
             "error",
         )
     ]
+
+
+def check_steam_sync(config_path: Path) -> list[Problem]:
+    """keys or manifests config.yaml has and steam doesn't: every game they belong to shows 0 B"""
+    from ...steam.sync import find_files, missing, restore
+
+    try:
+        keys, manifests = missing()
+    except Exception:
+        return []
+    if not keys and not manifests:
+        return []
+
+    def fix() -> str:
+        result = restore()
+        if result.get("error") == "steam is running":
+            return "close steam first: it rewrites config.vdf on exit and would drop the keys again. nothing changed"
+        if result.get("error"):
+            return f"couldn't write config.vdf: {result['error']}"
+        lost = result.get("not_found") or []
+        tail = f". {len(lost)} manifest(s) aren't anywhere on this pc: drop those games' files again" if lost else ""
+        return f"put {result['keys']} key(s) and {result['manifests']} manifest(s) back in steam{tail}"
+
+    findable = len(find_files(manifests)) if manifests else 0
+    return [
+        Problem(
+            "steam.keys-manifests-missing",
+            f"steam is missing {len(keys)} key(s) and {len(manifests)} manifest(s) from your config",
+            "steam was moved or reinstalled, so games show 0 B and won't download. "
+            f"the keys come from config.yaml; {findable} of the {len(manifests)} manifest(s) can be found on this pc",
+            "put them back into steam's config.vdf and depotcache (steam has to be closed)",
+            fix,
+            "error",
+        )
+    ]

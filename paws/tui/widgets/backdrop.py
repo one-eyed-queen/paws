@@ -205,6 +205,11 @@ def clear_plain(strips: list[Strip], base: RGB) -> list[Strip]:
     return out
 
 
+def glass_popup(screen) -> bool:
+    """popups sit on the sharp picture with a glass pane, like the loading screen. a popup can opt out"""
+    return getattr(screen, "glass", True)
+
+
 def _owner(widget):
     from textual.screen import ModalScreen, Screen
 
@@ -221,7 +226,7 @@ def _owner(widget):
             continue
         if isinstance(w, Screen):
             if isinstance(w, ModalScreen):
-                return None
+                return w if UNDERLAY and glass_popup(w) else None
             if UNDERLAY:
                 return w
             if not getattr(w, "_screen_backdrop_tried", False):

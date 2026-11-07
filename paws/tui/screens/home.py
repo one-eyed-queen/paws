@@ -13,6 +13,7 @@ from ...features import FEATURES as _FEATURES
 from ...sls.find import find_sls
 from ...steam.find import find_steam
 from ..widgets.art_panel import AsciiPanel
+from ..widgets import backdrop as backdrop_module
 from ..widgets.backdrop import panel_backdrop
 from ..widgets.footer import FooterHelp
 from ..widgets.gradient import gradient_text
@@ -40,7 +41,8 @@ class MenuPanel(Container):
     HINTS_MIN = 62
 
     def on_mount(self):
-        self.backdrop = panel_backdrop(self)
+        # with the real picture behind the whole screen this panel is glass over it, not its own blocky copy
+        self.backdrop = None if backdrop_module.UNDERLAY else panel_backdrop(self)
 
     def on_resize(self, event):
         self.query_one("#menu-detail").display = self.size.width >= self.DETAIL_MIN and not settings.is_minimal()
@@ -52,7 +54,9 @@ class MenuPanel(Container):
 
 
 class HomeScreen(Screen):
-    no_screen_picture = True
+    def glass_box(self):
+        panels = self.query("#right-col")  # the menu and the status lines under it, so both stay readable
+        return panels.first().region if panels else None
 
     BINDINGS = [("q", "quit_app", "quit"), ("escape", "quit_app", "quit")]
 

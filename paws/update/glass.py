@@ -50,7 +50,7 @@ def _cell_pixels() -> tuple[int, int]:
     return 10, 20
 
 
-def compose(cols: int, rows: int, box: tuple[int, int, int, int], cell: tuple[int, int]):
+def compose(cols: int, rows: int, box: tuple[int, int, int, int], cell: tuple[int, int], colours: bool = True):
     """the picture across the whole window, with a pane of frosted glass cut into it behind the text"""
     from PIL import Image, ImageDraw, ImageFilter
 
@@ -72,7 +72,7 @@ def compose(cols: int, rows: int, box: tuple[int, int, int, int], cell: tuple[in
     ImageDraw.Draw(mask).rounded_rectangle((0, 0, bw - 1, bh - 1), radius, fill=255)
     picture.paste(pane, (x, y), mask)
     ImageDraw.Draw(picture).rounded_rectangle((x, y, x + bw - 1, y + bh - 1), radius, outline=(150, 175, 235), width=1)
-    if settings.get_setting("colorblind") != "off":
+    if colours and settings.get_setting("colorblind") != "off":
         from ..tui import colorblind
 
         picture = colorblind.image(picture)

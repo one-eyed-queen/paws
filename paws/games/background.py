@@ -49,7 +49,11 @@ def missing_games(progress=None) -> dict[str, str]:
     from ..sources.depots import owners
 
     data = config.parsed()
-    complete = {str(a) for a in data.get("AppIds") or []}  # a game added for download has no AdditionalApps row
+    from .download import packages_supported
+
+    complete = {str(a) for a in data.get("AppIds") or []}
+    if not packages_supported():  # without AdditionalPackages a game only shows up through its AdditionalApps row
+        complete &= {str(a) for a in data.get("AdditionalApps") or []}
     skipped = _skipped()
     found = {}
     for appid, name in owners(_ids(data, DEPOT_SECTIONS) + _ids(data, APP_SECTIONS), progress=progress).values():
@@ -116,11 +120,18 @@ def run(report=None) -> list[str]:
     from .. import settings
     if not settings.get_setting("auto_add_games") or settings.missing_reason():
         return []
+    from ..steam.sync import restore
     from .download import unblock
 
     added = add_missing(report)
     try:
         added += [f"{name} (download fixed)" for name in unblock()]
+    except Exception:
+        pass
+    try:  # steam moved or reinstalled: its keys and manifests back from config.yaml and paws' copy
+        put_back = restore()
+        if put_back.get("keys") or put_back.get("manifests"):
+            added.append(f"{put_back['keys']} key(s) and {put_back['manifests']} manifest(s) back in steam")
     except Exception:
         pass
     if report is not None:

@@ -12,7 +12,7 @@ ACTIVATION_NOTE = "activated"  # activation's own short-lived rows, never touche
 
 
 def packages_supported() -> bool:
-    """does the installed SLSsteam read AdditionalPackages? its own config template says so, or the config has the key"""
+    """does the installed SLSsteam read AdditionalPackages? only its own config template can say"""
     try:
         from ..config.upstream import installed_template_keys
         from ..sls.find import find_sls
@@ -23,12 +23,7 @@ def packages_supported() -> bool:
             return "AdditionalPackages" in keys
     except Exception:
         pass
-    try:
-        from .. import config
-
-        return "AdditionalPackages" in (config.parsed() or {})
-    except Exception:
-        return False
+    return False  # unknown build: the config having the key proves nothing, paws fills every key in
 
 
 def blocked_rows(text: str) -> list[tuple[int, str, str]]:

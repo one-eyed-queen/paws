@@ -86,13 +86,13 @@ AsciiPanel {
 
 #menu-panel {
     height: 1fr;
-    background: #101a30;
+    background: transparent;  /* the glass pane is in the picture behind it */
     padding: 0;
 }
 
 #menu-panel-title {
     height: 1;
-    background: #0c1424;
+    background: transparent;
     color: $text;
     text-style: bold;
     content-align: center middle;
@@ -219,7 +219,7 @@ VerticalScroll {
     width: 72;
     max-width: 96%;
     height: auto;
-    background: $surface;
+    background: #0a1020;  /* same as the screen around it: both turn into the glass picture behind */
     padding: 1 2 1 2;
 }
 
@@ -477,7 +477,7 @@ DropScreen {
     width: 64;
     height: auto;
     padding: 1 3;
-    background: #0c1424;
+    background: #0a1020;
     content-align: center middle;
     text-align: center;
 }

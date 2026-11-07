@@ -34,9 +34,16 @@ def list_manifests(depot: int | None = None) -> list[tuple[int, int, Path]]:
 
 
 def install_manifests(files: list[tuple[int, int, Path]]) -> list[tuple[int, int]]:
+    from .sync import keep_manifests
+
+    keep_manifests(files)  # paws' own copy: a moved or reinstalled steam gets them back from there
     r = cache_root()
     if not r:
-        raise FileNotFoundError("depotcache not found")
+        st = find_steam()
+        if not st or not st.depotcache or not Path(st.root).is_dir():
+            raise FileNotFoundError("depotcache not found")
+        r = Path(st.depotcache)  # a fresh steam has no depotcache folder yet
+        r.mkdir(parents=True, exist_ok=True)
     added = []
     for depot, mid, src in files:
         dst = r / f"{depot}_{mid}.manifest"
