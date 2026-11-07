@@ -35,7 +35,7 @@ def _in_config() -> set[str]:
         data = parsed()
     except Exception:
         return set()
-    return {str(a) for a in data.get("AdditionalApps") or []} & {str(a) for a in data.get("AppIds") or []}
+    return {str(a) for a in data.get("AppIds") or []}
 
 
 def _picture(path):

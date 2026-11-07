@@ -189,3 +189,35 @@ def check_additional_packages(config_path: Path) -> list[Problem]:
             "error",
         )
     ]
+
+
+def check_downloads_blocked(config_path: Path) -> list[Problem]:
+    """games added for download that still carry an AdditionalApps row: steam shows them at 0 B and won't download"""
+    from ...games.download import blocked_rows, packages_supported, unblock
+
+    text = safe_read(config_path)
+    rows = blocked_rows(text) if text is not None and packages_supported() else []
+    if not rows:
+        return []
+
+    def fix() -> str:
+        from ...steam import is_running
+
+        if is_running():
+            return "close steam first: taking these out while it runs can make it uninstall the games. nothing changed"
+        moved = unblock(config_path)
+        if not moved:
+            return "couldn't reach the store for their packages, nothing changed. try again online"
+        return f"moved {len(moved)} game(s) to their store package: {', '.join(moved)}. backup kept"
+
+    listed = ", ".join(name or appid for _i, appid, name in rows[:6])
+    return [
+        Problem(
+            "config.downloads-blocked",
+            f"{len(rows)} game(s) can't download (0 B in steam)",
+            f"{listed}. their AdditionalApps row overrides the owner, and with DisableUpdates it hides the download",
+            "give each its store package and take the AdditionalApps row out (steam has to be closed)",
+            fix,
+            "error",
+        )
+    ]

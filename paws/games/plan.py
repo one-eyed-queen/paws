@@ -51,7 +51,10 @@ class GamePlan:
         # added with AppIds and no AdditionalApps silently never appears. the catch is that
         # AdditionalApps also overrides the owner id, which is what breaks downloads for a game
         # you already own or share, so it only goes in for games that aren't in your library yet
-        if self.appid and not _in_library(self.appid):
+        from .download import packages_supported
+
+        by_package = bool(self.packages) and packages_supported()  # see games/download.py: that row means 0 B
+        if self.appid and not by_package and not _in_library(self.appid):
             out.append(Change("config.yaml", "add", f"AdditionalApps     {self.appid}"))
         for a in self.additional_apps:
             # AppIds is the whitelist entry the game and each of its DLC need once AdditionalApps

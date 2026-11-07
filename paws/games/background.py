@@ -49,7 +49,7 @@ def missing_games(progress=None) -> dict[str, str]:
     from ..sources.depots import owners
 
     data = config.parsed()
-    complete = {str(a) for a in data.get("AdditionalApps") or []} & {str(a) for a in data.get("AppIds") or []}
+    complete = {str(a) for a in data.get("AppIds") or []}  # a game added for download has no AdditionalApps row
     skipped = _skipped()
     found = {}
     for appid, name in owners(_ids(data, DEPOT_SECTIONS) + _ids(data, APP_SECTIONS), progress=progress).values():
@@ -116,7 +116,13 @@ def run(report=None) -> list[str]:
     from .. import settings
     if not settings.get_setting("auto_add_games") or settings.missing_reason():
         return []
+    from .download import unblock
+
     added = add_missing(report)
+    try:
+        added += [f"{name} (download fixed)" for name in unblock()]
+    except Exception:
+        pass
     if report is not None:
         report("done", len(added), len(added))
     name_rows()
