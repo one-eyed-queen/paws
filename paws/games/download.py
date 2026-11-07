@@ -39,7 +39,8 @@ def packages_supported() -> bool:
         return False
 
 
-# config keys only the private build reads (checked against both builds' .so on 2026-11-07); everything else is shared
+# config keys only the private build reads (checked against public 20261106120254 and private .so); everything else
+# is shared — FakeAppIds, CDKeys, SteamIdOverride, FakeName, Plugins, SmartTickets are all in the public build
 PRIVATE_ONLY = ("AdditionalPackages", "DecryptionKeys", "AdditionalDepots", "CloudProxies", "InventoryItems")
 
 

@@ -93,6 +93,9 @@ def sls_checks(sls) -> list:
     deck = sls_module.family.decky_tools()
     if deck:
         out.append(CheckResult(True, "Steam Deck / Decky SLSsteam tools", ", ".join(deck) + " - front-ends for the same SLSsteam config", "info"))
+    others = sls_module.family.companions()
+    if others:
+        out.append(CheckResult(True, "Other SLSsteam config editors", ", ".join(others) + " - they edit the same config.yaml as paws", "info"))
     if sls.desktop_used:
         out.append(CheckResult(True, "LD_AUDIT wired", "a launcher (.desktop) injects SLSsteam", "ok"))
     version = sls_module.installed_version(sls)

@@ -20,6 +20,17 @@ KNOWN: dict[str, str] = {
     "SLSConfig-Decky": "Steam Deck / Game Mode editor for the SLSsteam config",
 }
 
+# other editors of the same config.yaml, by the command they put on PATH
+COMPANIONS: dict[str, str] = {
+    "slsconfigurator": "a TUI that edits the SLSsteam config",
+}
+
+
+def companions() -> list[str]:
+    import shutil
+
+    return [name for name in COMPANIONS if shutil.which(name)]
+
 # Decky Loader keeps its plugins here; the SLSsteam-family ones edit the same config paws does
 DECKY_PLUGINS = HOME / "homebrew" / "plugins"
 _MARKERS = ("hollow", "slsconfig", "headcrab", "sls")

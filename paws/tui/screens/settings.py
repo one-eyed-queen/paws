@@ -61,6 +61,8 @@ class SettingsScreen(Screen):
         ("backspace", "pop", "back"),
         ("left", "step(-1)", "previous choice"),
         ("right", "step(1)", "next choice"),
+        ("[", "prev_section", "prev section"),
+        ("]", "next_section", "next section"),
     ]
 
     def __init__(self, start="colorblind_on", **kwargs):
@@ -71,7 +73,7 @@ class SettingsScreen(Screen):
         yield AppHeader("Settings", id="hdr")
         yield Menu(id="set-menu", classes="panel")
         yield Static("", id="set-out", classes="panel")
-        yield FooterHelp("↑↓ move · enter or space changes · ← → steps through choices · esc back")
+        yield FooterHelp("↑↓ move · [ ] jump section · enter or space changes · ← → steps through choices · esc back")
         yield JobBar(id="job")
 
     def on_mount(self):
@@ -216,6 +218,35 @@ class SettingsScreen(Screen):
         elif key in CYCLES or key == "terminal":
             self._cycle(key, by)
             self.rebuild()
+
+    def action_prev_section(self):
+        self._jump_section(-1)
+
+    def action_next_section(self):
+        self._jump_section(1)
+
+    def _jump_section(self, by: int):
+        menu = self.query_one("#set-menu", Menu)
+        children = list(menu.children)
+        current = menu.index or 0
+        headers = [i for i, c in enumerate(children) if isinstance(c, SectionRow)]
+        if not headers:
+            return
+        if by > 0:
+            nexts = [h for h in headers if h > current]
+            if nexts:
+                target = nexts[0] + 1
+                if target < len(children):
+                    restore_index(menu, target)
+        else:
+            prevs = [h for h in headers if h < current]
+            if prevs:
+                first_of_current = prevs[-1] + 1
+                if first_of_current == current and len(prevs) >= 2:
+                    target = prevs[-2] + 1
+                else:
+                    target = first_of_current
+                restore_index(menu, target)
 
     def _cycle(self, key, by=1):
         order = ("auto", *launch.installed_terminals()) if key == "terminal" else CYCLES[key]
