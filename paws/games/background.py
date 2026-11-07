@@ -51,15 +51,49 @@ def missing_games(progress=None) -> dict[str, str]:
     data = config.parsed()
     from .download import packages_supported
 
-    complete = {str(a) for a in data.get("AppIds") or []}
-    if not packages_supported():  # without AdditionalPackages a game only shows up through its AdditionalApps row
-        complete &= {str(a) for a in data.get("AdditionalApps") or []}
+    allowed = {str(a) for a in data.get("AppIds") or []}
+    complete = allowed & {str(a) for a in data.get("AdditionalApps") or []}
+    if packages_supported():  # or it got its license the other way: its own store package is in AdditionalPackages
+        have = {str(p) for p in data.get("AdditionalPackages") or []}
+        complete |= {a for a in allowed - complete if set(_store_packages(a)) & have}
     skipped = _skipped()
     found = {}
     for appid, name in owners(_ids(data, DEPOT_SECTIONS) + _ids(data, APP_SECTIONS), progress=progress).values():
         if appid not in complete and appid not in skipped and not _in_library(appid):
             found[appid] = name
     return found
+
+
+_PACKAGES = None
+
+
+def _store_packages(appid: str) -> list[str]:
+    """the game's store package (see sources.store.main_package), remembered in ~/.cache/paws so the live fixer
+    asks the store once per game, not on every config change. [] for none, or when the store can't be reached"""
+    import json
+    from pathlib import Path
+
+    global _PACKAGES
+    path = Path.home() / ".cache" / "paws" / "packages.json"
+    if _PACKAGES is None:
+        try:
+            _PACKAGES = json.loads(path.read_text())
+        except (OSError, ValueError):
+            _PACKAGES = {}
+    if appid not in _PACKAGES:
+        from ..sources import from_store
+        from ..sources.base import SourceError
+
+        try:
+            _PACKAGES[appid] = [str(p) for p in from_store(appid).packages or []]
+        except (OSError, ValueError, SourceError):
+            return []  # offline: ask again next time
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(_PACKAGES))
+        except OSError:
+            pass
+    return _PACKAGES[appid]
 
 
 def _plan(appid: str, name: str):

@@ -7,7 +7,6 @@ from textual.widgets import Static
 
 from ... import drop
 from ..widgets import dropzone
-from ..widgets.backdrop import SCREEN_BLUR, Backdrop
 
 SHOW_RESULT_FOR = 2.6
 
@@ -44,8 +43,6 @@ class DropScreen(ModalScreen[None]):
         return f"[{colour}]{box}[/]\n\n[b]{caption}[/b]\n[#9db0e0]{hint}[/]"
 
     def on_mount(self):
-        bd = Backdrop(dropzone.BG, base=(10, 16, 32), strength=0.5, blur=SCREEN_BLUR / 2)
-        self.backdrop = bd if bd.load() else None
         if self._result is not None:
             self._timer = self.set_timer(SHOW_RESULT_FOR, self.action_close)
 

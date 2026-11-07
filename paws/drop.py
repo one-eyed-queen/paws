@@ -302,7 +302,7 @@ def import_files(paths: list[Path]) -> DropResult:
     counts = plan.counts()
     what = ", ".join(f"{n} to {target}" for target, n in sorted(counts.items()))
     via = " from " + paths[0].name if len(paths) == 1 and is_archive(paths[0]) else ""
-    title = f"added {plan.appid}{via}" if plan.appid else "added"
+    title = f"added {plan.name or plan.appid}{via}" if plan.appid else "added"
     # a missing config.vdf / depotcache is the user's steam not being installed (or SLSsteam
     # not being there), not a failure of this drop - the config.yaml rows really were written.
     # showing that as a red cross made every drop look broken

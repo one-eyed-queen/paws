@@ -294,7 +294,12 @@ class PawsApp(App):
         except Exception:  # the next start or config change tries again
             return
         if added and self.is_running:
-            self.call_from_thread(self.tell, f"added {len(added)} missing game(s)", ", ".join(added))
+            self.call_from_thread(self._tell_fixed, added)
+
+    def _tell_fixed(self, added):
+        if isinstance(self.screen, DropScreen):  # a drop's own follow-up: the card already covers it
+            return
+        self.tell(f"fixed {len(added)} game(s)", ", ".join(added))
 
     def on_unmount(self):
         if getattr(self, "underlay", None) is not None:
@@ -453,9 +458,8 @@ class PawsApp(App):
         return await asyncio.to_thread(work, what)
 
     async def take_drop(self, files):
-        self.tell("adding what you dropped...", files[0].name if len(files) == 1 else f"{len(files)} files")
+        # the drop card says all of this itself; toasts on top of it read as a second, broken popup
         result = await self._import(drop.import_any, files)
-        self.tell(result.title, "; ".join(x for x in result.lines if x)[:200], "information" if result.ok else "error")
         if isinstance(self.screen, DropScreen):
             self.screen.show_result(result)
         else:
@@ -463,7 +467,6 @@ class PawsApp(App):
 
     async def take_text(self, parsed):
         result = await self._import(drop.import_text, parsed)
-        self.tell(result.title, "; ".join(x for x in result.lines if x)[:200], "information" if result.ok else "error")
         if isinstance(self.screen, DropScreen):
             self.screen.show_result(result)
         else:

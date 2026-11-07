@@ -12,18 +12,9 @@ ACTIVATION_NOTE = "activated"  # activation's own short-lived rows, never touche
 
 
 def packages_supported() -> bool:
-    """does the installed SLSsteam read AdditionalPackages? only its own config template can say"""
-    try:
-        from ..config.upstream import installed_template_keys
-        from ..sls.find import find_sls
-
-        sls = find_sls()
-        keys = installed_template_keys(sls.lib_dir if sls else None)
-        if keys is not None:
-            return "AdditionalPackages" in keys
-    except Exception:
-        pass
-    return False  # unknown build: the config having the key proves nothing, paws fills every key in
+    """SLSsteam builds read AdditionalPackages even when their bundled res/config.yaml template doesn't list it
+    (the public build's template predates the key), so a game with a store package always goes in that way"""
+    return True
 
 
 def blocked_rows(text: str) -> list[tuple[int, str, str]]:
