@@ -41,6 +41,20 @@ def _make_depot_block(depot_id, key_hash, vdf):
     return f'{indent}"{depot_id}"\n{indent}{{\n{indent}\t"DecryptionKey"\t\t"{key_hash}"\n{indent}}}'
 
 
+STEAM_BLOCK = re.compile(r'"Software"\s*\{\s*"Valve"\s*\{\s*"Steam"\s*\{', re.IGNORECASE)
+
+
+def _with_depots_section(content: str, block: str) -> str:
+    """a fresh steam has no "depots" section. it has to go inside InstallConfigStore > Software > Valve > Steam:
+    put after the file's last brace, outside everything, steam threw it away the next time it saved the file"""
+    found = STEAM_BLOCK.search(content)
+    if not found:
+        raise ValueError("config.vdf has no Software > Valve > Steam section to put the keys in")
+    indent = _detect_indent(content, found.end()) + "\t"
+    section = f'\n{indent}"depots"\n{indent}{{\n{block}\n{indent}}}'
+    return content[: found.end()] + section + content[found.end() :]
+
+
 def _merge_depot_keys(content: str, depots: dict[str, str]) -> tuple[str, int]:
     injected = 0
     for depot_id, key_hash in depots.items():
@@ -73,7 +87,7 @@ def _merge_depot_keys(content: str, depots: dict[str, str]) -> tuple[str, int]:
                 insert_at = section.end()
                 content = content[:insert_at] + "\n" + block + content[insert_at:]
             else:
-                content = content.rstrip() + '\n\n\t"depots"\n\t{\n' + block + "\n\t}\n"
+                content = _with_depots_section(content, block)
             injected += 1
     return content, injected
 

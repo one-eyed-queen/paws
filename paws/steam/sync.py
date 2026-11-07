@@ -81,6 +81,75 @@ def find_files(manifests: dict[str, str]) -> dict[str, Path]:
         depot = wanted_names.get(name)
         if depot and depot not in found and path.is_file():
             found[depot] = path
+    still = {name: depot for name, depot in wanted_names.items() if depot not in found}
+    if still:
+        found.update(_from_archives(still))
+    return found
+
+
+ARCHIVES = re.compile(r"\.(zip|7z|rar)$", re.IGNORECASE)
+ARCHIVE_LIMIT = 500 * 1024 * 1024  # game bundles with .lua/.manifest files are small, multi-GB ones are game files
+
+
+def _archive_members(path: Path) -> list[str]:
+    """names inside an archive, remembered by size and date so each one is only read once"""
+    import json
+
+    cache_file = Path.home() / ".cache" / "paws" / "archive-index.json"
+    try:
+        cache = json.loads(cache_file.read_text())
+    except (OSError, ValueError):
+        cache = {}
+    stat = path.stat()
+    stamp = f"{stat.st_size}:{stat.st_mtime_ns}"
+    entry = cache.get(str(path))
+    if entry and entry.get("stamp") == stamp:
+        return entry["names"]
+    from ..drop import _member_names
+
+    names = [n for n in _member_names(path) if n.endswith(".manifest")]
+    cache[str(path)] = {"stamp": stamp, "names": names}
+    try:
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+        cache_file.write_text(json.dumps(cache))
+    except OSError:
+        pass
+    return names
+
+
+def _from_archives(still: dict[str, str]) -> dict[str, Path]:
+    """the manifests that only exist inside a downloaded .zip/.7z/.rar: copied out into paws' own store"""
+    import subprocess
+
+    found: dict[str, Path] = {}
+    folder = Path.home() / "Downloads"
+    if not folder.is_dir():
+        return found
+    for archive in sorted(folder.rglob("*")):
+        if not ARCHIVES.search(archive.name) or not archive.is_file() or archive.stat().st_size > ARCHIVE_LIMIT:
+            continue
+        try:
+            members = _archive_members(archive)
+        except OSError:
+            continue
+        for member in members:
+            name = Path(member).name
+            depot = still.get(name)
+            if not depot or depot in found:
+                continue
+            target = store() / name
+            try:
+                store().mkdir(parents=True, exist_ok=True)
+                data = subprocess.run(["bsdtar", "-xOf", str(archive), member], capture_output=True, timeout=120).stdout
+                if not data:
+                    data = subprocess.run(["7z", "e", "-so", str(archive), member], capture_output=True, timeout=120).stdout
+            except (OSError, subprocess.SubprocessError):
+                continue
+            if data:
+                target.write_bytes(data)
+                found[depot] = target
+        if len(found) == len(still):
+            break
     return found
 
 

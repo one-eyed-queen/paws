@@ -19,15 +19,17 @@ class SteamError(Exception):
 def launch_env(sls: SlsInstall | None) -> dict[str, str]:
     """env with LD_AUDIT when sls brings injector libs the guard comes first for flatpak"""
     env = dict(os.environ)
-    if sls and sls.lib_dir and sls.sls_so and sls.inject_so:
-        inject = sls.inject_so
-        main = sls.sls_so
+    if sls and sls.lib_dir and sls.sls_so:
+        # the same libraries, in the same order, as the steam.desktop launcher. current builds ship SLSsteam.so alone
+        # (an empty library-inject.so at most), and requiring the injector here started steam with no SLSsteam at
+        # all, so every unlocked game vanished from the library
+        from ..sls.desktop import audit_targets
+
+        targets = [str(p) for p in audit_targets(Path(sls.lib_dir))] or [str(sls.sls_so)]
         if sls.kind == "flatpak":
-            guard = "/app/links/$LIB/libshared-library-guard.so"  # the guard has to come first
-            env["LD_AUDIT"] = f"{guard}:{str(inject)}:{str(main)}"
+            targets.insert(0, "/app/links/$LIB/libshared-library-guard.so")  # the guard has to come first
             env["SHARED_LIBRARY_GUARD"] = "0"
-        else:
-            env["LD_AUDIT"] = f"{str(inject)}:{str(main)}"
+        env["LD_AUDIT"] = ":".join(targets)
     return env
 
 
