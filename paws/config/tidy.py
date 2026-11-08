@@ -10,7 +10,7 @@ from .lines import block_end_line, section_index
 from .where import find_config
 
 # package ids are their own numbering, so a package row never borrows a label from an app with the same number
-GAME_SECTIONS = ("AppIds", "AdditionalApps", "ManifestIds", "AppTokens", "DecryptionKeys")
+GAME_SECTIONS = ("AppIds", "AdditionalApps", "AdditionalPackageApps", "ManifestIds", "AppTokens", "DecryptionKeys")
 SECTIONS = (*GAME_SECTIONS, "AdditionalPackages")
 ROW = re.compile(r"""^\s+(?:-\s*)?["']?(\d+)["']?\s*(?::.*)?$""")
 JUNK = re.compile(r"^\d*(?::\S*)?$")  # older paws wrote the id or the whole id:value row as the "name"

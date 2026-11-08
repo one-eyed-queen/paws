@@ -9,6 +9,7 @@ the game, because SLSsteam reports its license as changed)"""
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from ...config.io import write_now
@@ -37,9 +38,10 @@ def leftovers(text: str, owned: set[str] | None = None) -> dict[int, tuple[str, 
         return {}
     if owned is None:
         try:
+            from ...games.plan import unlocked_by_paws
             from ...steam.library import owned_appids
 
-            owned = owned_appids()
+            owned = owned_appids() - unlocked_by_paws()  # installed because paws unlocked it isn't owned
         except (ImportError, OSError):
             owned = set()
     owned = {str(a) for a in owned}
@@ -193,12 +195,13 @@ def check_additional_packages(config_path: Path) -> list[Problem]:
 
 def check_downloads_blocked(config_path: Path) -> list[Problem]:
     """games added for download that still carry an AdditionalApps row: steam shows them at 0 B and won't download"""
-    from ...games.download import blocked_rows, packages_supported, unblock
+    from ...games.download import blocked_rows, packages_supported, reads, unblock
 
     text = safe_read(config_path)
     rows = blocked_rows(text) if text is not None and packages_supported() else []
     if not rows:
         return []
+    where = "AdditionalPackageApps" if reads("AdditionalPackageApps") else "their store package"
 
     def fix() -> str:
         from ...steam import is_running
@@ -208,7 +211,7 @@ def check_downloads_blocked(config_path: Path) -> list[Problem]:
         moved = unblock(config_path)
         if not moved:
             return "couldn't reach the store for their packages, nothing changed. try again online"
-        return f"moved {len(moved)} game(s) to their store package: {', '.join(moved)}. backup kept"
+        return f"moved {len(moved)} game(s) to {where}: {', '.join(moved)}. backup kept"
 
     listed = ", ".join(name or appid for _i, appid, name in rows[:6])
     return [
@@ -216,7 +219,7 @@ def check_downloads_blocked(config_path: Path) -> list[Problem]:
             "config.downloads-blocked",
             f"{len(rows)} game(s) can't download (0 B in steam)",
             f"{listed}. their AdditionalApps row overrides the owner, and with DisableUpdates it hides the download",
-            "give each its store package and take the AdditionalApps row out (steam has to be closed)",
+            f"move each to {where} and take the AdditionalApps row out (steam has to be closed)",
             fix,
             "error",
         )
@@ -339,5 +342,54 @@ def check_steam_sync(config_path: Path) -> list[Problem]:
             "close steam, put them back into its config.vdf and depotcache, start steam again",
             fix,
             "error",
+        )
+    ]
+
+
+DENIED = re.compile(
+    r"BYldRequestDepotManifest\(App: (\d+), Depot: (\d+), Manifest: (\d+)[^)]*\): Failed to get manifest request code, '([^']*)'"
+)
+
+
+def denied_manifests(log_text: str) -> dict[str, tuple[str, str, str]]:
+    """depot -> (app, manifest, valve's answer) for manifest codes steam's latest session couldn't get"""
+    session = log_text.rsplit("Client version:", 1)[-1]
+    return {depot: (app, manifest, why) for app, depot, manifest, why in DENIED.findall(session)}
+
+
+def check_manifest_code_denied(config_path: Path) -> list[Problem]:
+    """steam's "no internet connection" on a download: valve refused the depot's manifest request code"""
+    from ...games.download import known_build, packages_supported
+    from ...steam.find import find_steam
+
+    steam = find_steam()
+    if not steam or not steam.root:
+        return []
+    log = safe_read(Path(steam.root) / "logs" / "content_log.txt") or ""
+    cache = Path(steam.depotcache) if steam.depotcache else None
+    denied = {
+        d: v for d, v in denied_manifests(log).items() if not (cache and (cache / f"{d}_{v[1]}.manifest").is_file())
+    }
+    if not denied:
+        return []
+    listed = ", ".join(f"depot {d} of app {app} ({why})" for d, (app, _m, why) in list(denied.items())[:4])
+    if known_build() and not packages_supported():
+        why, todo = (
+            "the installed SLSsteam is the public build, which can't get these codes (private builds fetch them)",
+            "drop a private SLSsteam build's .7z on paws, or that depot's .manifest file",
+        )
+    else:
+        why, todo = (
+            "SLSsteam didn't get the code from its manifest service either",
+            "start steam through paws so SLSsteam is loaded and try again, or drop that depot's .manifest file",
+        )
+    return [
+        Problem(
+            "steam.manifest-code-denied",
+            f"steam said \"no internet connection\" for {len(denied)} depot(s): valve refused their manifest code",
+            f"{listed}. your connection is fine: valve only gives that code for games you own. {why}",
+            todo,
+            None,
+            "warn",
         )
     ]

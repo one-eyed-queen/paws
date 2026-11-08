@@ -9,13 +9,39 @@ from ..manifest.bundle import ManifestBundle
 def _in_library(appid: str) -> bool:
     """does steam already list this app for the signed-in user? installed counts, and so does any
     app with a block in localconfig.vdf. being offline or having no steam at all reads as "not in
-    the library", which only means the game gets the AdditionalApps row it needs to show up"""
+    the library", which only means the game gets the AdditionalApps row it needs to show up.
+    a game paws unlocked gets both of those too, so it never counts: taken for owned, it lost its
+    unlock row and steam uninstalled it"""
     try:
         from ..steam.library import owned_appids
 
-        return str(appid) in owned_appids()
+        if str(appid) not in owned_appids():
+            return False
     except (ImportError, OSError):
         return False
+    return str(appid) not in unlocked_by_paws()
+
+
+UNLOCK_SECTIONS = ("AdditionalApps", "AdditionalPackageApps", "AdditionalPackages")
+
+
+def unlocked_by_paws() -> set[str]:
+    """games paws wrote an unlock row or depot keys for since they were last removed. a game you own needs neither"""
+    from ..util import undo
+
+    out, removed = set(), set()
+    for record in undo.history(limit=100000):  # newest first
+        detail = record.get("detail") or {}
+        appid = str(detail.get("appid") or "")
+        kind = record.get("kind")
+        if kind == "apply_remove":
+            removed.add(appid)
+        if appid in removed:
+            continue
+        entries = (detail.get("entries") or []) if kind == "config.add" else []
+        if appid and (kind == "vdf.add" or any(entry[0] in UNLOCK_SECTIONS for entry in entries if entry)):
+            out.add(appid)
+    return out
 
 
 @dataclass
@@ -50,20 +76,28 @@ class GamePlan:
         # AppIds alone never reaches that list - it only decides what gets excluded - so a game
         # added with AppIds and no AdditionalApps silently never appears. the catch is that
         # AdditionalApps also overrides the owner id, which is what breaks downloads for a game
-        # you already own or share, so it only goes in for games that aren't in your library yet
-        from .download import packages_supported
+        # you already own or share, so it only goes in for games that aren't in your library yet.
+        # private builds that read AdditionalPackageApps take the game there instead: that's their download path
+        from .download import build_reads, packages_supported, reads
 
-        by_package = bool(self.packages) and packages_supported()  # see games/download.py: that row means 0 B
-        if self.appid and not by_package and not _in_library(self.appid):
-            out.append(Change("config.yaml", "add", f"AdditionalApps     {self.appid}"))
+        package_apps = reads("AdditionalPackageApps")
+        by_package = bool(self.packages) and packages_supported() and not package_apps  # games/download.py: 0 B
+        if self.appid and not _in_library(self.appid):
+            if package_apps:
+                out.append(Change("config.yaml", "add", f"AdditionalPackageApps {self.appid}"))
+            elif not by_package:
+                out.append(Change("config.yaml", "add", f"AdditionalApps     {self.appid}"))
         for a in self.additional_apps:
             # AppIds is the whitelist entry the game and each of its DLC need once AdditionalApps
             # has injected it; without UseWhitelist: yes a blacklist would exclude them instead
             out.append(Change("config.yaml", "add", f"AppIds     {a}"))
-        from .download import build_reads
-
-        for p in self.packages if build_reads("AdditionalPackages") else ():  # public build: does nothing there
-            out.append(Change("config.yaml", "add", f"AdditionalPackages {p}"))
+        if build_reads("AdditionalPackages") and not package_apps:  # public build: does nothing there
+            for p in self.packages:
+                out.append(Change("config.yaml", "add", f"AdditionalPackages {p}"))
+        if reads("AdditionalDepots"):  # older private builds: every keyed depot but the game, as their convert-lua does
+            for d in self.decryption_keys:
+                if d != self.appid:
+                    out.append(Change("config.yaml", "add", f"AdditionalDepots   {d}"))
         for d in self.decryption_keys:
             out.append(Change("config.vdf", "add", f"DecryptionKey      {d}"))
         for d, m in self.manifest_ids.items():
@@ -84,7 +118,7 @@ class GamePlan:
 
 def plan_from_bundle(bundle: ManifestBundle, name: str = "") -> GamePlan:
     flat = bundle.flatten()
-    appid = str(bundle.appid or (flat["app_ids"][0] if flat["app_ids"] else ""))
+    appid = str(bundle.main_appid() or "")
     plan = GamePlan(appid=appid, name=name or "")
     plan.names = {str(k): v for k, v in flat["names"].items()}
     if not appid:

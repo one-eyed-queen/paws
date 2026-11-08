@@ -30,7 +30,7 @@ patch_sls = mock.patch("paws.sls.find.find_sls", lambda *a, **k: fake_sls)
 patch_sls.start()
 
 check("public build detected", download.packages_supported(), False)
-check("private keys unread", [download.build_reads(k) for k in download.PRIVATE_ONLY], [False] * 5)
+check("private keys unread", [download.build_reads(k) for k in download.PRIVATE_ONLY], [False] * len(download.PRIVATE_ONLY))
 check("shared keys read", download.build_reads("AppIds"))
 text = default_config_text()
 check("fresh config has no private sections", [k for k in download.PRIVATE_ONLY if f"\n{k}:" in text], [])

@@ -276,7 +276,16 @@ def comment_out_stuck(text: str, stuck: list[Fix]) -> str:
     return "\n".join(lines)
 
 
-APPID_SECTIONS = ("AppIds", "AdditionalApps", "FakeOffline", "AppTokens", "FakeAppIds", "LaunchOptions", "DlcData")
+APPID_SECTIONS = (
+    "AppIds",
+    "AdditionalApps",
+    "AdditionalPackageApps",
+    "FakeOffline",
+    "AppTokens",
+    "FakeAppIds",
+    "LaunchOptions",
+    "DlcData",
+)
 
 
 def app_ids_with_lines(text):

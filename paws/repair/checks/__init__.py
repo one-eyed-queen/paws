@@ -10,6 +10,7 @@ from .apps import (
     check_additional_packages,
     check_disable_updates_0b,
     check_downloads_blocked,
+    check_manifest_code_denied,
     check_public_build,
     check_steam_sync,
 )
@@ -42,6 +43,7 @@ __all__ = [
     "check_downloads_blocked",
     "check_public_build",
     "check_steam_sync",
+    "check_manifest_code_denied",
     "check_additional_packages",
     "USER_APPS",
     "STEAM_LAUNCHERS",
@@ -87,6 +89,7 @@ def scan(online: bool = False) -> list[Problem]:
         out += check_disable_updates_0b(config_path)
         out += check_public_build(config_path)
         out += check_steam_sync(config_path)
+        out += check_manifest_code_denied(config_path)
         if online:  # asks the store about every package, so only for `paws fix`
             out += check_additional_packages(config_path)
         if not structural and not any(p.severity == "error" for p in values):

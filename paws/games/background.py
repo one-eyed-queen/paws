@@ -9,7 +9,7 @@ from .apply import apply_plan
 from .plan import _in_library, plan_add
 
 DEPOT_SECTIONS = ("ManifestIds", "DecryptionKeys", "AdditionalDepots")  # keyed by depot
-APP_SECTIONS = ("AppIds", "AdditionalApps", "AppTokens", "DlcData")  # app ids, typed in by hand or left by older paws
+APP_SECTIONS = ("AppIds", "AdditionalApps", "AdditionalPackageApps", "AppTokens", "DlcData")  # by hand or older paws
 
 
 def _skip_path():
@@ -49,11 +49,14 @@ def missing_games(progress=None) -> dict[str, str]:
     from ..sources.depots import owners
 
     data = config.parsed()
-    from .download import packages_supported
+    from .download import reads
 
     allowed = {str(a) for a in data.get("AppIds") or []}
-    complete = allowed & {str(a) for a in data.get("AdditionalApps") or []}
-    if packages_supported():  # or it got its license the other way: its own store package is in AdditionalPackages
+    unlocked = {str(a) for a in data.get("AdditionalApps") or []}
+    if reads("AdditionalPackageApps"):  # the build's own download row; a store package alone doesn't count there
+        unlocked |= {str(a) for a in data.get("AdditionalPackageApps") or []}
+    complete = allowed & unlocked
+    if reads("AdditionalPackages") and not reads("AdditionalPackageApps"):  # older private: its store package
         have = {str(p) for p in data.get("AdditionalPackages") or []}
         complete |= {a for a in allowed - complete if set(_store_packages(a)) & have}
     skipped = _skipped()

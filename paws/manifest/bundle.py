@@ -47,6 +47,21 @@ class ManifestBundle:
             lm = LuaManifest(path)
             lm.parse()
             self.luas.append(lm)
+            if self.appid is None and path.stem.isdigit():  # named after its game, like the archives (2651280.lua)
+                self.appid = int(path.stem)
+
+    def add_folder(self, folder: Path):
+        if self.appid is None and folder.name.isdigit():
+            self.appid = int(folder.name)
+        for path in bundle_files(folder):
+            self.add_file(path)
+
+    def main_appid(self) -> int | None:
+        """the game: the appid given or in a file name, else the first addappid() of the first .lua, which every
+        generator writes first. never the lowest id: that is usually a shared redist depot like 228989"""
+        if self.appid is not None:
+            return self.appid
+        return next((lm.app_ids[0][0] for lm in self.luas if lm.app_ids), None)
 
     def add_file(self, path: Path):
         sfx = path.suffix.lower()
@@ -132,6 +147,26 @@ class ManifestBundle:
         return depots
 
 
+BUNDLE_SUFFIXES = (".lua", ".manifest", ".key")
+FOLDER_DEPTH = 2
+FOLDER_LIMIT = 2000
+
+
+def bundle_files(folder: Path) -> list[Path]:
+    """the .lua/.manifest/.key files in a dropped folder, two levels down at most so dropping a big folder stays quick"""
+    import os
+
+    out: list[Path] = []
+    top = len(folder.parts)
+    for root, dirs, files in os.walk(folder):
+        if len(Path(root).parts) - top >= FOLDER_DEPTH:
+            dirs[:] = []
+        out += [Path(root) / name for name in files if name.lower().endswith(BUNDLE_SUFFIXES)]
+        if len(out) >= FOLDER_LIMIT:
+            break
+    return sorted(out)[:FOLDER_LIMIT]
+
+
 def parse_key_text(content: str, appid: int) -> dict:
     content = content.strip().strip('"')
     last_word = content.split()[-1] if content.split() else ""
@@ -147,7 +182,9 @@ def load_bundle(path: Path) -> ManifestBundle:
     bundle = ManifestBundle()
     from ..sls.archive import is_archive
 
-    if is_archive(path):
+    if path.is_dir():
+        bundle.add_folder(path)
+    elif is_archive(path):
         bundle.add_archive(path, HOME / ".cache/paws")
     else:
         bundle.add_file(path)

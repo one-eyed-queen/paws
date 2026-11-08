@@ -11,6 +11,7 @@ LEGACY_SECTIONS = ("AdditionalDepots", "AdditionalPackages", "DecryptionKeys")
 
 REMOVE_SECTIONS = (
     "AdditionalApps",
+    "AdditionalPackageApps",
     "AppIds",
     "ManifestIds",
     "AppTokens",
@@ -67,6 +68,7 @@ def list_added_games() -> list[dict]:
     dlc_data = {str(k): {str(d): n for d, n in (v or {}).items()} for k, v in (pars.get("DlcData") or {}).items()}
     ids = {str(x) for x in (pars.get("AppIds") or [])}
     ids |= {str(x) for x in (pars.get("AdditionalApps") or [])}
+    ids |= {str(x) for x in (pars.get("AdditionalPackageApps") or [])}
     ids |= set(dlc_data)
     return [
         {"appid": a, "name": _name_for(a), "dlc": dlc_data.get(a, {})}

@@ -116,14 +116,14 @@ def _apply_cfg(plan, c):
         if config.add_entry(section, line)[0]:  # a skipped duplicate isn't ours to undo
             out.append((section, line))
 
-    if kind in ("AppIds", "AdditionalApps"):
+    if kind in ("AppIds", "AdditionalApps", "AdditionalPackageApps"):
         put(kind, config.render_item(kind, id=value, name=name))
         # AppIds is a blacklist by default - without this, adding a game here would tell
         # SLSsteam to EXCLUDE it, the opposite of what adding a game means. the DLC entries
         # depend on it too, since only AdditionalApps itself bypasses the exclusion check
         config.set_scalar("UseWhitelist", "yes")
-    elif kind == "AdditionalPackages":
-        put("AdditionalPackages", config.render_item("AdditionalPackages", id=value, name=name))
+    elif kind in ("AdditionalPackages", "AdditionalDepots"):
+        put(kind, config.render_item(kind, id=value, name=name))
     elif kind == "ManifestIds":
         depot, _, manifest = value.partition(":")
         put("ManifestIds", config.render_item("ManifestIds", depot=depot, manifest=manifest, name=name))

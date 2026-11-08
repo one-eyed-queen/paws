@@ -105,6 +105,16 @@ def run(args) -> int:
         if args.action == "uninstall":
             return _uninstall(args)
         if args.action == "update" and args.source == "github" and not args.tag:
+            from ...games.download import packages_supported
+
+            if before is not None and packages_supported():  # github's build would replace it with one that can't download
+                _say(
+                    args,
+                    {"ok": False, "action": "update", "changed": False, "error": "a private build is installed"},
+                    "paws sls update: your SLSsteam is a private build and github only has the public one, which "
+                    "can't download games. update it with: paws sls install --source private --url <newer .7z>",
+                )
+                return 1
             # say up front when there is nothing to do, instead of downloading the same bytes
             # again and reporting a cheerful "done"
             latest = sls_module.fetch_latest_github_tag()

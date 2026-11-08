@@ -47,7 +47,9 @@ def installed_template_keys(lib_dir: Path | None) -> tuple[str, ...] | None:
         return None
 
 
-KNOWN_VALID = frozenset({"AdditionalDepots", "AdditionalPackages", "DecryptionKeys", "CloudProxies", "InventoryItems"})
+KNOWN_VALID = frozenset(
+    {"AdditionalPackageApps", "AdditionalDepots", "AdditionalPackages", "DecryptionKeys", "CloudProxies", "InventoryItems"}
+)
 
 
 def diff(upstream_keys: tuple[str, ...]) -> tuple[list[str], list[str]]:

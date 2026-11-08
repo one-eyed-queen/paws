@@ -6,7 +6,7 @@
 <p align="center">
   <img src="assets/image.png" alt="paws app preview" width="800" align="middle">
 </p>
-<p align="center"><b>v4.2.127</b> - public release version numbers: the last number (X.Y.<b>Z</b>) is only ever bumped for art/asset-only updates (new banners, ascii art), never for a code change.</p>
+<p align="center"><b>v4.3.127</b> - public release version numbers: the last number (X.Y.<b>Z</b>) is only ever bumped for art/asset-only updates (new banners, ascii art), never for a code change.</p>
 
 
 
@@ -42,7 +42,7 @@ paws only edits the lines it needs to. ur comments, ur order and every value u d
 
 - **installs, updates and removes SLSsteam** (and HeadCrab on linux, HubCapTools on windows)
 - **adds and removes games**
-- **takes dropped files** (.lua, .key, .manifest, or a .zip/.rar/.7z/.tar.gz/.pkg.tar.zst holding them — it reads inside and works out what's there)
+- **takes dropped files** (.lua, .key, .manifest, a whole folder of them, or a .zip/.rar/.7z/.tar.gz/.pkg.tar.zst holding them — it reads inside and works out what's there)
 - **fills the config in for you** — drop a game's files and the appid, package, keys, manifests and dlc names land in the right sections, without touching the add-game screen
 - **makes tickets** (type 2, straight from the steam that's already running — no restart, experimental)
 - **two looks:** riced (background picture, banner, ascii art, mini games) or minimal (plain terminal ui in ur own colours). see the [showcase](#showcase)
@@ -250,10 +250,10 @@ paws also **refuses to delete OpenValve's config** on uninstall: it sits in the 
 
 paws does all of this for u when u add a game (drag and drop, add game, or the live fixer), and it checks which SLSsteam u actually have installed first, so it only ever writes settings ur build reads. this is what it writes so u know:
 
-**private build** (reads `AdditionalPackages` and `DecryptionKeys`), the only one that can download:
+**private build** (reads `DecryptionKeys` and `AdditionalPackageApps` or `AdditionalPackages`), the only one that can download:
 
 1. the depot keys go in `DecryptionKeys:`, one line per key: `appid: "key"`
-2. the game's store package goes in `AdditionalPackages:`
+2. the game goes in `AdditionalPackageApps:` on private builds from 2026-11 (their own docs: "use this instead of AdditionalApps for every game you want to download"). older private builds get the game's store package in `AdditionalPackages:` and its other depots in `AdditionalDepots:` instead
 3. the game's base AppId goes in `AppIds:`
 4. `UseWhitelist:` is set to `yes` (needed whenever u use AppIds)
 5. no `AdditionalApps:` row: it overwrites the owner id and breaks the download
@@ -263,9 +263,13 @@ paws does all of this for u when u add a game (drag and drop, add game, or the l
 1. the game's AppId in `AdditionalApps:` (that's what makes it show up) and in `AppIds:`
 2. the depot keys straight into steam's own `config.vdf` (public SLSsteam has no `DecryptionKeys:`), plus a copy paws keeps so they come back if steam moves or gets reinstalled
 3. the `.manifest` files into steam's depotcache, and `ManifestIds:` / `AppTokens:` / `DlcData:` as needed
-4. none of the private-only sections (`AdditionalPackages`, `DecryptionKeys`, `AdditionalDepots`, `CloudProxies`, `InventoryItems`). if ur config has them, the fixer moves their keys out and removes them
+4. none of the private-only sections (`AdditionalPackageApps`, `AdditionalPackages`, `DecryptionKeys`, `AdditionalDepots`, `CloudProxies`, `InventoryItems`). if ur config has them, the fixer moves their keys out and removes them
 
 every row gets the game's full name as a comment. `paws doctor` tells u which build u have and why a game is at 0 B.
+
+**"no internet connection" when a download starts** isn't ur internet. steam asks valve for a code for each depot's manifest, valve says "Access Denied" for a game u don't own, and steam shows that as no connection. private builds get that code themselves, the public one can't. `paws doctor` reads steam's own download log and tells u which depot it was.
+
+**Install / Update never swap a private build for the public one by themselves.** github only has the public build, so Update leaves a private one alone and Install asks first. to update a private build, drop its newer .7z on paws.
 
 the private steps are the same on linux and windows; the config format didn't change, so a bundle u drop into a linux install writes exactly what OpenValve expects.
 

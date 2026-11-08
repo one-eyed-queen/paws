@@ -202,8 +202,12 @@ def dropped_files(text: str) -> list[Path] | None:
     paths = paths_in(text)
     if not paths:
         return None
+    from .manifest.bundle import bundle_files
+
     for p in paths:
         try:
+            if p.is_dir() and bundle_files(p):  # a game's folder of .lua/.manifest files, dropped whole
+                continue
             if not p.is_file():
                 return None
             if p.suffix.lower() in ACCEPTED or is_ticket_file(p):
@@ -275,7 +279,9 @@ def import_files(paths: list[Path]) -> DropResult:
 
     for p in paths:
         try:
-            if is_archive(p):
+            if p.is_dir():
+                bundle.add_folder(p)
+            elif is_archive(p):
                 if tmp is None:
                     tmp = Path(tempfile.gettempdir()) / f"paws-unz-{os.getpid()}-{p.stem}"
                 bundle.add_archive(p, tmp)
@@ -301,7 +307,7 @@ def import_files(paths: list[Path]) -> DropResult:
             shutil.rmtree(tmp, ignore_errors=True)
     counts = plan.counts()
     what = ", ".join(f"{n} to {target}" for target, n in sorted(counts.items()))
-    via = " from " + paths[0].name if len(paths) == 1 and is_archive(paths[0]) else ""
+    via = " from " + paths[0].name if len(paths) == 1 and (paths[0].is_dir() or is_archive(paths[0])) else ""
     title = f"added {plan.name or plan.appid}{via}" if plan.appid else "added"
     # a missing config.vdf / depotcache is the user's steam not being installed (or SLSsteam
     # not being there), not a failure of this drop - the config.yaml rows really were written.

@@ -2,7 +2,12 @@
 
 public SLSsteam can't download at all (its author: "adding apps only needs AdditionalApps. downloading needs some
 more" / "public SLS can't download"): there AdditionalApps is the only way a game shows up, and it stays at 0 B.
-the private build reads AdditionalPackages and DecryptionKeys, and that's the way to download.
+steam also has to ask valve for every depot's manifest request code, valve answers "Access Denied" for a game you
+don't own, and steam shows that as "no internet connection". private builds fetch that code themselves.
+
+private builds from 2026-11 read AdditionalPackageApps, their own template: "Additional apps to inject into package 0.
+Use this instead of AdditionalApps for every game you want to download via the Steam client itself". older private
+builds read AdditionalPackages (the game's store package) and AdditionalDepots instead.
 
 SLSsteam's AdditionalApps overrides the game's owner, and with DisableUpdates on it also makes steam's update info for
 that app fail (Apps::shouldDisableUpdates, hooks.cpp GetAppUpdateInfo). steam then has nothing to download and shows
@@ -20,29 +25,45 @@ ACTIVATION_NOTE = "activated"  # activation's own short-lived rows, never touche
 _SUPPORT: dict = {}
 
 
-def packages_supported() -> bool:
-    """does the installed SLSsteam read AdditionalPackages? asked of the .so itself: a build that reads a key has its
-    name in the binary (the public build has AdditionalApps/AppIds/ManifestIds and no
-    AdditionalPackages or DecryptionKeys). its res/config.yaml template isn't proof either way"""
+def build_keys() -> frozenset[str]:
+    """the PRIVATE_ONLY keys the installed SLSsteam .so reads, asked of the binary itself: a build that reads a key
+    has its name in it. its res/config.yaml template isn't proof either way, and neither is the config"""
     try:
         from ..sls.find import find_sls
 
         sls = find_sls()
         so = Path(sls.sls_so) if sls and sls.sls_so else None
         if so is None or not so.is_file():
-            return False  # a config alone says nothing about the build, and unblock() takes rows out on a yes
+            return frozenset()  # a config alone says nothing about the build, and unblock() takes rows out on a yes
         stamp = (str(so), so.stat().st_mtime_ns)
         if stamp not in _SUPPORT:
             content = so.read_bytes()
-            _SUPPORT[stamp] = b"AdditionalPackages" in content or b"DecryptionKeys" in content
+            _SUPPORT[stamp] = frozenset(k for k in PRIVATE_ONLY if k.encode() in content)
         return _SUPPORT[stamp]
     except Exception:
-        return False
+        return frozenset()
 
 
-# config keys only the private build reads (checked against public 20261106120254 and private .so); everything else
-# is shared — FakeAppIds, CDKeys, SteamIdOverride, FakeName, Plugins, SmartTickets are all in the public build
-PRIVATE_ONLY = ("AdditionalPackages", "DecryptionKeys", "AdditionalDepots", "CloudProxies", "InventoryItems")
+def reads(key: str) -> bool:
+    return key in build_keys()
+
+
+def packages_supported() -> bool:
+    """is the installed SLSsteam a private build, one that can download? the public one reads none of PRIVATE_ONLY"""
+    return bool(build_keys() & {"AdditionalPackages", "AdditionalPackageApps", "DecryptionKeys"})
+
+
+# config keys only private builds read (checked against public 20261106120254 and the 2026-09 and 2026-11 private .so);
+# everything else is shared — FakeAppIds, CDKeys, SteamIdOverride, FakeName, Plugins, SmartTickets are all in public.
+# 2026-11 private dropped AdditionalDepots and added AdditionalPackageApps
+PRIVATE_ONLY = (
+    "AdditionalPackageApps",
+    "AdditionalPackages",
+    "DecryptionKeys",
+    "AdditionalDepots",
+    "CloudProxies",
+    "InventoryItems",
+)
 
 
 def known_build() -> bool:
@@ -58,7 +79,7 @@ def known_build() -> bool:
 
 def build_reads(key: str) -> bool:
     """would the installed SLSsteam read this config key? unknown build (none installed): assume yes"""
-    return key not in PRIVATE_ONLY or not known_build() or packages_supported()
+    return key not in PRIVATE_ONLY or not known_build() or reads(key)
 
 
 def drop_private_sections(config_path=None) -> list[str]:
@@ -128,8 +149,9 @@ def blocked_rows(text: str) -> list[tuple[int, str, str]]:
 
 
 def unblock(config_path=None) -> list[str]:
-    """moves those games over: their store package in, the AdditionalApps row out. only with steam closed, because
-    a row disappearing while it runs can make steam uninstall the game. returns the games it moved"""
+    """moves those games over: into AdditionalPackageApps where the build reads it, else their store package in, and
+    the AdditionalApps row out. only with steam closed, because a row disappearing while it runs can make steam
+    uninstall the game. returns the games it moved"""
     from .. import config
     from ..config.io import raw_lines, write
     from ..sources import from_store
@@ -142,6 +164,19 @@ def unblock(config_path=None) -> list[str]:
     if path is None:
         return []
     text = "\n".join(raw_lines(path)) + "\n"
+    if reads("AdditionalPackageApps"):
+        moved = {appid: name or appid for _line, appid, name in blocked_rows(text)}
+        if not moved:
+            return []
+        backup.backup_file(path)
+        with config.batch():
+            for appid, name in moved.items():
+                line = config.render_item("AdditionalPackageApps", id=appid, name=name)
+                config.add_entry("AdditionalPackageApps", line, backup=False)
+            lines = raw_lines(path)
+            drop = {i for i, appid, _name in blocked_rows("\n".join(lines) + "\n") if appid in moved}
+            write(path, "\n".join(l for i, l in enumerate(lines) if i not in drop) + "\n")
+        return list(moved.values())
     packages = {}
     for _line, appid, name in blocked_rows(text):
         try:

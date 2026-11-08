@@ -35,10 +35,13 @@ def _in_config() -> set[str]:
         data = parsed()
     except Exception:
         return set()
-    from ...games.download import packages_supported
+    from ...games.download import packages_supported, reads
 
     have = {str(a) for a in data.get("AppIds") or []}
-    return have if packages_supported() else have & {str(a) for a in data.get("AdditionalApps") or []}
+    unlocked = {str(a) for a in data.get("AdditionalApps") or []}
+    if reads("AdditionalPackageApps"):
+        return have & (unlocked | {str(a) for a in data.get("AdditionalPackageApps") or []})
+    return have if packages_supported() else have & unlocked
 
 
 def _picture(path):

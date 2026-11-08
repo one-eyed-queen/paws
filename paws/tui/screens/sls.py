@@ -21,6 +21,17 @@ from ..widgets.modals import Confirm, ModalPick
 WINDOWS_NOTE = "[#9db0e0]" + UNDER_CONSTRUCTION + "[/]"
 
 
+PRIVATE_NOTE = (
+    "your SLSsteam is a private build. github only has the public one, which can't download games (they sit at 0 B)"
+)
+
+
+def _private_installed() -> bool:
+    from ...games.download import packages_supported
+
+    return packages_supported()
+
+
 def _any_source(variant: str = "any", flavour: str = "release"):
     """the github release source. windows ignores variant/flavour and goes to the port's own
     installer instead - there is only one HubCapTools build"""
@@ -132,6 +143,9 @@ class SlsScreen(Screen):
             if sls is None:
                 self.set_out("[#9db0e0]nothing to update yet - use Install SLSsteam[/]")
                 return
+            if _private_installed():
+                self.set_out(f"[#9db0e0]{PRIVATE_NOTE}. Update leaves it alone: drop the newer private .7z here[/]")
+                return
             latest = sls_module.fetch_latest_github_tag()
             state = sls_module.update_state(sls, latest)
             reason = sls_module.update_reason(sls, latest)
@@ -238,6 +252,15 @@ class SlsScreen(Screen):
     def _build_chosen(self, choice):
         if not choice:
             return
+        if _private_installed():
+            self.app.push_screen(
+                Confirm(f"{PRIVATE_NOTE}.\nreplace it with the public one anyway?", dangerous=True),
+                lambda yes: yes and self._install_build(choice),
+            )
+            return
+        self._install_build(choice)
+
+    def _install_build(self, choice):
         variant, flavour = choice.split("/")
         if variant == "arch":
             self._get_root("installing the SLSsteam package")

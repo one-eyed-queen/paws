@@ -24,6 +24,7 @@ def section_meta() -> list[tuple[str, str, str]]:
         "UseWhitelist",
         "AppIds",
         "AdditionalApps",
+        "AdditionalPackageApps",
         "AdditionalDepots",
         "AdditionalPackages",
         "DecryptionKeys",

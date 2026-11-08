@@ -40,6 +40,12 @@
       "desc": "apps to inject. overrides OwnerIds for shared apps and BREAKS downloads, so only use it for games not in your library",
       "tool": "manage"
     },
+    "AdditionalPackageApps": {
+      "type": "list-int",
+      "item": "  - {id} # {name}",
+      "desc": "apps to inject into package 0 (private builds). use this instead of AdditionalApps for every game you want to download through steam",
+      "tool": "manage"
+    },
     "AdditionalDepots": {
       "type": "list-int",
       "item": "  - {id} # {name}",
