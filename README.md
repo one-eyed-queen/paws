@@ -56,6 +56,8 @@ paws only edits the lines it needs to. ur comments, ur order and every value u d
 - **tells u when things finish**
 - **updates itself** when u open it (git, fast-forward only, skips if ur offline)
 
+  join discord server discord.gg/9Nr3JuN8VK for support and plugins
+
 ## works with
 
 - **distros:** arch and family (manjaro, endeavouros, cachyos, garuda, blackarch, steamos), debian and family (ubuntu, mint, pop!_os, zorin, kali, parrot, mx), fedora and family (nobara, bazzite, rocky, alma), opensuse, void, gentoo, alpine (steam through flatpak), nixos (needs nix-ld so the python wheels run). image based ones (steamos, bazzite, silverblue) are fine, paws only ever writes to ur home
