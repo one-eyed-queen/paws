@@ -222,3 +222,214 @@ def export_plugin(name: str, dest_dir: Path) -> Path:
     with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as archive:
         archive.write(plugin.path, plugin.path.name)
     return target
+
+
+# ---- the download plugin ----------------------------------------------------------------------
+# a plugin can read config keys the .so never does, and that's how the public build downloads. download.lua (what
+# enter-the-wired and ASSella ship) does what private builds do natively: it puts AdditionalDepots into package 0 so
+# steam counts those depots as yours, hands steam the DecryptionKeys when it asks its config store for a depot key,
+# and fetches the manifest request code valve refuses for a game you don't own. without it every game on a public
+# build sits at 0 B, and steam deletes an unlicensed game's files at its next start
+
+DOWNLOAD = "download.lua"
+# byte for byte the download.lua in enter-the-wired's release, ASSella and lumaforge-panel. paws installs this one
+# only: a plugin runs any code it likes inside steam
+DOWNLOAD_SHA256 = "8e822aecfea085cfcada45b9ed0e8f2c09bc04b76c667cc1904342c9197be627"
+DOWNLOAD_SOURCES = (
+    ("https://github.com/ciscosweater/enter-the-wired/releases/download/latest/plugins-deps.zip", DOWNLOAD),
+    (
+        (
+            "https://raw.githubusercontent.com/niwia/ASSella/f7a9fd754610953fa842e346e6fce04185ff32ba/"
+            "src/res/plugins/download.lua"
+        ),
+        None,
+    ),
+)
+DOWNLOAD_KEYS = frozenset({"AdditionalDepots", "DecryptionKeys"})
+
+_READS = re.compile(r'SLS\.config:get\w*\(\s*"(\w+)"')
+_PATTERNS = re.compile(r'patternScan\(\s*"([0-9A-Fa-f? ]+)"')
+_FACTS: dict = {}
+
+
+def live_files() -> list[Path]:
+    """the .lua files SLSsteam runs (plugins-disabled is paws' own folder, it never looks there)"""
+    try:
+        return sorted(p for p in plugins_dir().glob("*.lua") if p.is_file())
+    except OSError:
+        return []
+
+
+def _facts(path: Path) -> tuple[frozenset[str], tuple[str, ...], bool, str]:
+    """(config keys it reads, its byte patterns, whether it does downloads, sha256), remembered per file version"""
+    import hashlib
+
+    stamp = (str(path), path.stat().st_mtime_ns)
+    if stamp not in _FACTS:
+        raw = path.read_bytes()
+        text = raw.decode(errors="replace")
+        reads = frozenset(_READS.findall(text))
+        downloads = DOWNLOAD_KEYS <= reads and "GetManifestRequestCode" in text
+        _FACTS[stamp] = (reads, tuple(_PATTERNS.findall(text)), downloads, hashlib.sha256(raw).hexdigest())
+    return _FACTS[stamp]
+
+
+def keys_read() -> frozenset[str]:
+    """config keys the live plugins read. none when SLSsteam doesn't run them (Plugins isn't on)"""
+    if not master_on():
+        return frozenset()
+    out: set[str] = set()
+    for path in live_files():
+        try:
+            out |= _facts(path)[0]
+        except OSError:
+            continue
+    return frozenset(out)
+
+
+def downloader() -> Path | None:
+    """the live plugin that does downloads, whatever it's called"""
+    for path in live_files():
+        try:
+            if _facts(path)[2]:
+                return path
+        except OSError:
+            continue
+    return None
+
+
+def download_ready() -> bool:
+    return master_on() and downloader() is not None
+
+
+def steam_client() -> Path | None:
+    """the 32-bit steamclient.so SLSsteam and its plugins hook"""
+    try:
+        from ..steam.find import find_steam
+
+        steam = find_steam()
+    except (ImportError, OSError):
+        return None
+    if not steam or not steam.root:
+        return None
+    client = Path(steam.root) / "ubuntu12_32" / "steamclient.so"
+    return client if client.is_file() else None
+
+
+_CODE: dict = {}
+
+
+def missing_patterns(path: Path) -> list[str] | None:
+    """the plugin's byte patterns this steam client doesn't have. a steam update moves code around, and a plugin that
+    can't find its spot can't hook it. None when there's no client or nothing to check"""
+    from ..util import elf
+
+    client = steam_client()
+    try:
+        patterns = _facts(path)[1]
+        if client is None or not patterns:
+            return None
+        stamp = (str(client), client.stat().st_mtime_ns)
+        if stamp not in _CODE:
+            _CODE.clear()
+            _CODE[stamp] = elf.code(client)
+    except OSError:
+        return None
+    code = _CODE[stamp]
+    return [p for p in patterns if not elf.matches(p, code)] if code else None
+
+
+def fetch_download() -> bytes:
+    import hashlib
+    import io
+
+    from ..util import http
+
+    tried = []
+    for url, member in DOWNLOAD_SOURCES:
+        try:
+            data = http.get(url, timeout=30)
+            if member:
+                with zipfile.ZipFile(io.BytesIO(data)) as archive:
+                    data = archive.read(member)
+        except Exception as error:
+            tried.append(f"{url}: {error}")
+            continue
+        digest = hashlib.sha256(data).hexdigest()
+        if digest == DOWNLOAD_SHA256:
+            return data
+        tried.append(f"{url}: a different download.lua (sha256 {digest[:12]}), not the one paws checked")
+    raise SlsError("couldn't get download.lua. " + "; ".join(tried))
+
+
+def _steam_closed():
+    from ..steam import is_running
+
+    if is_running():
+        raise SlsError(
+            "close steam first: SLSsteam loads plugins when steam starts, and its author warns against swapping one "
+            "under a running steam"
+        )
+
+
+def install_download(data: bytes | None = None) -> dict:
+    """download.lua in, Plugins on, DisableUpdates off and the two sections it reads in the config.
+
+    SLSsteam runs plugins at steam's start and on a .lua change, never on a config change (lua.cpp, config.cpp). so
+    with Plugins off the file goes in first (that change runs nothing) and Plugins goes on after it: the plugin loads
+    at the next start, nothing gets hooked into a running steam. with Plugins already on, writing it would do exactly
+    that, so steam has to be closed then.
+
+    DisableUpdates makes SLSsteam fail IClientAppManager::GetUpdateInfo for every AdditionalApps game. that's where
+    steam's ui gets a download's size and progress, so with it on the game shows 0 B next to its bar"""
+    import hashlib
+    import os
+
+    from .. import config
+    from ..steam import is_running
+
+    running = is_running()
+    if running and master_on():
+        _steam_closed()
+    other = downloader()
+    if other is not None and other.name != DOWNLOAD:
+        raise SlsError(f"{other.name} already does downloads: two of them would hook the same functions")
+    data = data if data is not None else fetch_download()
+    if hashlib.sha256(data).hexdigest() != DOWNLOAD_SHA256:
+        raise SlsError("that isn't the download.lua paws checked, so it wasn't installed")
+    folder = plugins_dir()
+    folder.mkdir(mode=0o700, parents=True, exist_ok=True)
+    os.chmod(folder, 0o700)  # SLSsteam won't load from a plugins folder others can write to
+    parked = disabled_dir() / DOWNLOAD
+    if parked.is_file():
+        parked.unlink()
+    target = folder / DOWNLOAD
+    part = folder / (DOWNLOAD + ".part")
+    part.write_bytes(data)
+    os.chmod(part, 0o600)
+    part.replace(target)
+    was_on = master_on()
+    updates_were_off = (config.get_scalar("DisableUpdates") or "").strip().lower() in ("yes", "true", "on", "1")
+    with config.batch():
+        if not was_on:
+            set_master(True)
+        if updates_were_off:
+            config.set_scalar("DisableUpdates", "no")
+        added = config.fill_missing(only=DOWNLOAD_KEYS)
+    return {
+        "ok": True,
+        "path": str(target),
+        "plugins_turned_on": not was_on,
+        "updates_turned_on": updates_were_off,
+        "sections_added": added,
+        "restart_steam": running,
+    }
+
+
+def remove_download() -> dict:
+    """download.lua goes to plugins-disabled, the same as Enable/Disable does, so it can come back"""
+    _steam_closed()
+    if not (plugins_dir() / DOWNLOAD).is_file():
+        return {"ok": True, "removed": None}
+    parked = disable(DOWNLOAD[: -len(".lua")])
+    return {"ok": True, "removed": str(parked.path)}

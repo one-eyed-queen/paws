@@ -228,9 +228,9 @@ def check_downloads_blocked(config_path: Path) -> list[Problem]:
 
 def check_public_build(config_path: Path) -> list[Problem]:
     """public SLSsteam puts games in the library but can't download them: tell the user instead of a silent 0 B"""
-    from ...games.download import ACTIVATION_NOTE, known_build, packages_supported
+    from ...games.download import ACTIVATION_NOTE, known_build, packages_supported, plugin_downloads
 
-    if not known_build() or packages_supported():
+    if not known_build() or packages_supported() or plugin_downloads():
         return []
     from ...config.lines import _code_part, block_end_line, item_key, section_index
     from ...config.tidy import split_comment
@@ -247,9 +247,10 @@ def check_public_build(config_path: Path) -> list[Problem]:
         Problem(
             "sls.public-no-downloads",
             f"{len(names)} game(s) show in steam but can't download (0 B)",
-            f"{', '.join(names[:6])}. the installed SLSsteam is the public build: it adds games to the library but "
-            "doesn't download them, so steam shows 0 B. that's the build, not your config - nothing here is broken",
-            "this isn't a config error paws can fix; 0 B is expected on the public build",
+            f"{', '.join(names[:6])}. the installed SLSsteam is the public build: on its own it adds games to the "
+            "library but doesn't download them, so steam shows 0 B (and deletes downloaded files at its next start)",
+            "add SLSsteam's download plugin: `paws plugins download`, or Plugins > Download plugin. "
+            "it runs inside steam, so it's your call, paws won't add it by itself",
             None,
             "info",
         )
@@ -258,15 +259,15 @@ def check_public_build(config_path: Path) -> list[Problem]:
 
 def check_disable_updates_0b(config_path: Path) -> list[Problem]:
     """DisableUpdates: yes with AdditionalApps rows hides update info for those games, so they sit at 0 B.
-    only on a build that can download (on public 0 B is the build), and only for rows check_downloads_blocked
-    doesn't already move to a store package"""
+    only on a build that can download (on the plain public build 0 B is the build), and only for rows
+    check_downloads_blocked doesn't already move to a store package"""
     import yaml
 
     from ...config.tidy import split_comment
-    from ...games.download import ACTIVATION_NOTE, blocked_rows, packages_supported
+    from ...games.download import ACTIVATION_NOTE, blocked_rows, can_download, packages_supported
 
     text = safe_read(config_path)
-    if not text or not packages_supported():
+    if not text or not can_download():
         return []
     try:
         data = yaml.safe_load(text) or {}
@@ -278,7 +279,7 @@ def check_disable_updates_0b(config_path: Path) -> list[Problem]:
     idx = section_index(lines, "AdditionalApps")
     if idx is None:
         return []
-    covered = {i for i, _appid, _name in blocked_rows(text)}
+    covered = {i for i, _appid, _name in blocked_rows(text)} if packages_supported() else set()
     apps = [
         split_comment(lines[i])[1] or str(item_key(lines[i]))
         for i in range(idx + 1, block_end_line(lines, idx))
@@ -302,8 +303,8 @@ def check_disable_updates_0b(config_path: Path) -> list[Problem]:
         Problem(
             "config.disable-updates-0b",
             f"{len(apps)} game(s) at 0 B because DisableUpdates is on",
-            f"{', '.join(apps[:6])}. with DisableUpdates on, SLSsteam hides steam's update info for AdditionalApps "
-            "games, so steam has nothing to download",
+            f"{', '.join(apps[:6])}. with DisableUpdates on, SLSsteam fails steam's update info for AdditionalApps "
+            "games, and that's where steam gets a download's size and progress: they show 0 B",
             "turn DisableUpdates off (steam will update your other games again too)",
             fix,
             "warn",
@@ -359,7 +360,7 @@ def denied_manifests(log_text: str) -> dict[str, tuple[str, str, str]]:
 
 def check_manifest_code_denied(config_path: Path) -> list[Problem]:
     """steam's "no internet connection" on a download: valve refused the depot's manifest request code"""
-    from ...games.download import known_build, packages_supported
+    from ...games.download import known_build, packages_supported, plugin_downloads
     from ...steam.find import find_steam
 
     steam = find_steam()
@@ -373,10 +374,15 @@ def check_manifest_code_denied(config_path: Path) -> list[Problem]:
     if not denied:
         return []
     listed = ", ".join(f"depot {d} of app {app} ({why})" for d, (app, _m, why) in list(denied.items())[:4])
-    if known_build() and not packages_supported():
+    if plugin_downloads():
         why, todo = (
-            "the installed SLSsteam is the public build, which can't get these codes (private builds fetch them)",
-            "drop a private SLSsteam build's .7z on paws, or that depot's .manifest file",
+            "the download plugin didn't get the code from its manifest service either (gmrc.wudrm.com)",
+            "check that site opens from this pc, then restart steam through paws so the plugin is loaded",
+        )
+    elif known_build() and not packages_supported():
+        why, todo = (
+            "the installed SLSsteam is the public build, which can't get these codes on its own",
+            "add the download plugin (`paws plugins download`), or drop that depot's .manifest file",
         )
     else:
         why, todo = (

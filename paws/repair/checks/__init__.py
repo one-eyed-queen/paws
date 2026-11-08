@@ -24,7 +24,16 @@ from .config import (
     check_config_values,
     find_duplicates,
 )
-from .launchers import STEAM_LAUNCHERS, USER_APPS, audit_paths, check_launchers, strip_ld_audit
+from .download_plugin import check_download_plugin
+from .launchers import (
+    STEAM_LAUNCHERS,
+    USER_APPS,
+    audit_paths,
+    check_launcher_quoting,
+    check_launchers,
+    check_steam_without_sls,
+    strip_ld_audit,
+)
 from .paws_files import check_journal, check_settings, check_tickets
 
 __all__ = [
@@ -50,6 +59,9 @@ __all__ = [
     "audit_paths",
     "strip_ld_audit",
     "check_launchers",
+    "check_launcher_quoting",
+    "check_steam_without_sls",
+    "check_download_plugin",
     "check_settings",
     "check_journal",
     "check_tickets",
@@ -96,6 +108,9 @@ def scan(online: bool = False) -> list[Problem]:
             backup.snapshot_good(config_path)
     out += check_api_pipe()
     out += check_launchers()
+    out += check_launcher_quoting()
+    out += check_steam_without_sls()
+    out += check_download_plugin()
     out += check_tickets()
     out += check_settings()
     out += check_journal()

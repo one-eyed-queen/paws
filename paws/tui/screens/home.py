@@ -27,6 +27,7 @@ DETAIL_KEYS = "\n".join(
         "[#4066ff]" + "─" * 30 + "[/]",
         "[#9db0e0]shortcuts[/]",
         "[#dbe4ff]↑ ↓[/]  [#9db0e0]move[/]      [#dbe4ff]enter[/]  [#9db0e0]run[/]",
+        "[#dbe4ff]1-9[/]  [#9db0e0]run that row[/]",
         "[#dbe4ff]q  esc[/]  [#9db0e0]quit[/]",
         "",
         "[#9db0e0]drop on the window[/]",
@@ -38,11 +39,12 @@ DETAIL_KEYS = "\n".join(
 
 class MenuPanel(Container):
     DETAIL_MIN = 86
-    HINTS_MIN = 62
+    HINTS_MIN = 44
 
     def on_mount(self):
         # with the real picture behind the whole screen this panel is glass over it, not its own blocky copy
         self.backdrop = None if backdrop_module.UNDERLAY else panel_backdrop(self)
+        self._fit()
 
     def on_resize(self, event):
         self.query_one("#menu-detail").display = self.size.width >= self.DETAIL_MIN and not settings.is_minimal()
@@ -51,6 +53,19 @@ class MenuPanel(Container):
             self.set_class(compact, "-compact")
             for row in self.query(MenuItem):
                 row.refresh(layout=False)
+        self._fit()
+
+    def _fit(self):
+        """a short terminal used to clip the last rows: the box hugs its items, so when they don't fit the centred
+        block ran off the bottom and Settings / Quit were unreachable. below the needed height the list takes the
+        space and scrolls instead. on a tall screen it keeps hugging, with no half-empty border."""
+        rows = len(self.query(MenuItem))
+        height = self.size.height
+        if not rows or not height:
+            return
+        scroll = height < rows + 6  # menu title, its margin, the border and a little breathing room
+        if scroll != self.has_class("-scroll"):
+            self.set_class(scroll, "-scroll")
 
 
 class HomeScreen(Screen):
@@ -58,7 +73,11 @@ class HomeScreen(Screen):
         panels = self.query("#right-col")  # the menu and the status lines under it, so both stay readable
         return panels.first().region if panels else None
 
-    BINDINGS = [("q", "quit_app", "quit"), ("escape", "quit_app", "quit")]
+    BINDINGS = [
+        ("q", "quit_app", "quit"),
+        ("escape", "quit_app", "quit"),
+        *[(str(n), f"jump({n - 1})", f"item {n}") for n in range(1, 10)],
+    ]
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="home-body"):
@@ -157,7 +176,7 @@ class HomeScreen(Screen):
         text = f"[b #ffffff]{item.title}[/]\n\n[#dbe4ff]{item.desc}[/]\n\n{hint}"
         if text != getattr(self, "_detail_text", None):
             self._detail_text = text
-            self.query_one("#detail-top", Static).update(text, layout=False)
+            self.query_one("#detail-top", Static).update(text)
 
     def _render_status(self):
         parts = list(getattr(self, "_status_text", []))
@@ -165,15 +184,19 @@ class HomeScreen(Screen):
         # started while it was still "checking…" used to land last and leave it stuck on that
         if getattr(self, "_show_latest", True):
             parts.insert(min(2, len(parts)), f"[#9db0e0]latest release: {getattr(self, '_latest', 'checking…')}[/]")
-        if getattr(self, "_last_art", None):
+        short = self.app.has_class("-short")
+        if not short and getattr(self, "_last_art", None):
             spacing = ""
             panels = self.query("#art-home")
             if panels:
                 spacing = panels.first(AsciiPanel).spacing(sizes=False)  # one line under the menu
             parts.append(f"[#9db0e0]banner: {self._last_art}" + (f" · {spacing}" if spacing else "") + "[/]")
-        parts.append(
-            "[#9db0e0]⚖ Source-available © 2026 ken (kaneki ken) / Anteiku - no resale, no rebrand, no AI training[/]"
+        licence = (
+            "⚖ Source-available © 2026 ken / Anteiku"
+            if short
+            else ("⚖ Source-available © 2026 ken (kaneki ken) / Anteiku - no resale, no rebrand, no AI training")
         )
+        parts.append(f"[#9db0e0]{licence}[/]")
         self.query_one("#home-status", Static).update("\n".join(parts))
 
     def _shown_entries(self):
@@ -213,9 +236,17 @@ class HomeScreen(Screen):
                 for i, (key, label, desc, icon) in enumerate(entries)
             ]
         )
+        panel = self.query_one(MenuPanel)
+        panel.call_after_refresh(panel._fit)
         if menu.children:
             menu.call_after_refresh(lambda: restore_index(menu, current_index))
         menu.focus()
+
+    def action_jump(self, index: int):
+        menu = self.query_one("#menu", Menu)
+        if 0 <= index < len(menu.children):
+            restore_index(menu, index)
+            menu.action_select_cursor()
 
     @on(Menu.Highlighted)
     def _help(self, event):
@@ -285,14 +316,14 @@ class HomeScreen(Screen):
             from ...config import upstream
 
             github_keys = upstream.fetch_github_keys()
-            added, removed = upstream.diff(github_keys) if github_keys is not None else ([], [])
-            if not added and not removed:
+            added, _removed = upstream.diff(github_keys) if github_keys is not None else ([], [])
+            if not added:
                 installed_keys = upstream.installed_template_keys(sls.lib_dir if sls else None)
                 if installed_keys is not None:
-                    added, removed = upstream.diff(installed_keys)
+                    added, _removed = upstream.diff(installed_keys)
         except Exception:
             return []
-        if not added and not removed:
+        if not added:
             return []
         return ["[#ffd75f]SLSsteam's config keys moved: Status / Doctor for details[/]"]
 
@@ -319,8 +350,32 @@ class HomeScreen(Screen):
         st, sls = find_steam(), find_sls()
         version = sls_module.installed_version(sls) if sls else None
         steam_text = f"Steam: {st.kind} v{st.client_version}" if st else "Steam: not found"
-        sls_text = f"SLS: ver={version}" if sls else "SLS: not installed"
+        if not sls:
+            sls_text = "SLS: not installed"
+        elif sls.kind == "windows":
+            sls_text = f"SLS: {version}"
+        else:
+            build = ""
+            try:
+                from ...games.download import packages_supported, plugin_downloads
+
+                if packages_supported():
+                    build = " (private)"
+                else:
+                    build = " (public+plugin)" if plugin_downloads() else " (public)"
+            except Exception:
+                pass
+            sls_text = f"SLS: ver={version}{build}"
         text = [f"[b]{steam_text}[/b]", f"[b]{sls_text}[/b]"]
+        family_names: list[str] = []
+        try:
+            from ...sls import family
+
+            family_names = family.present()
+        except Exception:
+            pass
+        if family_names:
+            text.append(f"[#9db0e0]also: {', '.join(family_names)}[/]")
         missing = settings.missing_reason()
         if missing:
             text.append(f"[#ff7a8a]{missing}[/]")

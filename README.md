@@ -6,7 +6,7 @@
 <p align="center">
   <img src="assets/image.png" alt="paws app preview" width="800" align="middle">
 </p>
-<p align="center"><b>v4.3.127</b> - public release version numbers: the last number (X.Y.<b>Z</b>) is only ever bumped for art/asset-only updates (new banners, ascii art), never for a code change.</p>
+<p align="center"><b>v4.4.127</b> - public release version numbers: the last number (X.Y.<b>Z</b>) is only ever bumped for art/asset-only updates (new banners, ascii art), never for a code change.</p>
 
 
 
@@ -263,11 +263,25 @@ paws does all of this for u when u add a game (drag and drop, add game, or the l
 1. the game's AppId in `AdditionalApps:` (that's what makes it show up) and in `AppIds:`
 2. the depot keys straight into steam's own `config.vdf` (public SLSsteam has no `DecryptionKeys:`), plus a copy paws keeps so they come back if steam moves or gets reinstalled
 3. the `.manifest` files into steam's depotcache, and `ManifestIds:` / `AppTokens:` / `DlcData:` as needed
-4. none of the private-only sections (`AdditionalPackageApps`, `AdditionalPackages`, `DecryptionKeys`, `AdditionalDepots`, `CloudProxies`, `InventoryItems`). if ur config has them, the fixer moves their keys out and removes them
+4. none of the private-only sections (`AdditionalPackageApps`, `AdditionalPackages`, `DecryptionKeys`, `AdditionalDepots`, `CloudProxies`, `InventoryItems`), unless a plugin reads them (below). if ur config has ones nothing reads, the fixer moves their keys out and removes them
+
+**public build + the download plugin** downloads too. `download.lua` is an SLSsteam lua plugin (the one enter-the-wired and ASSella ship) that does what private builds do natively: it puts the game's depots into package 0 so steam counts them as yours, hands steam the keys, and fetches the manifest codes valve refuses. add it with `paws plugins download` or **Plugins > Download plugin** (paws only installs the exact file it checked, by sha256, and never adds it by itself because it runs inside steam). steam can stay open: the plugin loads the next time steam starts. it also turns `DisableUpdates` off, because with it on SLSsteam fails steam's update info for every `AdditionalApps` game, and that's where steam gets a download's size and progress, so the game shows 0 B. then paws writes:
+
+1. the game in `AdditionalApps:` and `AppIds:`, like the plain public build
+2. every keyed depot except the game itself in `AdditionalDepots:`, and the keys in `DecryptionKeys:` (the same layout SLSsteam's own convert-lua prints)
+3. the keys in `config.vdf`, the manifests in the depotcache, `ManifestIds:` / `AppTokens:` / `DlcData:` as needed
+
+with all that, **Install** shows the game's real size, the download shows its real size and progress, and there's no "no internet connection": steam downloads it like a game u own.
+
+the plugin hooks steam by byte patterns, so a steam update can break it. `paws doctor` checks its patterns against ur `steamclient.so` and says when it doesn't fit any more.
 
 every row gets the game's full name as a comment. `paws doctor` tells u which build u have and why a game is at 0 B.
 
-**"no internet connection" when a download starts** isn't ur internet. steam asks valve for a code for each depot's manifest, valve says "Access Denied" for a game u don't own, and steam shows that as no connection. private builds get that code themselves, the public one can't. `paws doctor` reads steam's own download log and tells u which depot it was.
+**"no internet connection" when a download starts** isn't ur internet. steam asks valve for a code for each depot's manifest, valve says "Access Denied" for a game u don't own, and steam shows that as no connection. private builds and the download plugin get that code themselves, the plain public build can't. `paws doctor` reads steam's own download log and tells u which depot it was.
+
+**steam deletes a game u downloaded some other way** (DepotDownloader and friends) at its next start when nothing gives it a license for the depots, so on the plain public build files u put there by hand don't stay. with the download plugin steam downloads and keeps them itself.
+
+**a 64-bit SLSsteam won't load into steam.** the steam client is 32-bit, so a build made for 64-bit gets "wrong ELF class" from the loader and steam starts without it (then it removes the games u don't own). paws refuses to install one and `paws doctor` flags one that's already there.
 
 **Install / Update never swap a private build for the public one by themselves.** github only has the public build, so Update leaves a private one alone and Install asks first. to update a private build, drop its newer .7z on paws.
 
@@ -360,6 +374,7 @@ all of those take `--dry-run` to show what would change without changing it.
     paws sls install --source private --url LINK --name HeadCrab
                             a private build from a repo link or a .zip/.7z (sources: github, private, forgejo, local)
     paws plugins            new / import / export / enable / disable plugins, `master on|off` for all of them
+    paws plugins download   add SLSsteam's download plugin so the public build downloads (--remove sets it aside)
     paws update             get the newest paws (--check just looks)
     paws update --force     update even when git would stop: local changes get stashed, then it resets
                             onto the remote tip. same on any shell, any os (--no-stash discards them instead)
@@ -399,6 +414,7 @@ the awesome gang without which this would not exist, so go say hi (and scroll to
 - [ke619](https://github.com/ke619)
 - [Arata12](https://github.com/Arata12)
 - [petar](https://git.petar.cc/petar)
+- [ciscosweater](https://github.com/ciscosweater) (enter-the-wired, where paws gets the download plugin)
 
 <p align="center">
   <img src="assets/moan.png" alt="" width="300">

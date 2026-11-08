@@ -521,7 +521,7 @@ class PawsApp(App):
         self.call_from_thread(self.tell, "SLSsteam installed", body)
 
     def _fit_to_height(self, rows):
-        self.set_class(rows < 30, "-short")
+        self.set_class(rows < 34, "-short")
 
 
 LIVE_UPDATE_EVERY = 300.0

@@ -94,7 +94,7 @@ class GamePlan:
         if build_reads("AdditionalPackages") and not package_apps:  # public build: does nothing there
             for p in self.packages:
                 out.append(Change("config.yaml", "add", f"AdditionalPackages {p}"))
-        if reads("AdditionalDepots"):  # older private builds: every keyed depot but the game, as their convert-lua does
+        if reads("AdditionalDepots"):  # older private builds or the download plugin: every keyed depot but the game
             for d in self.decryption_keys:
                 if d != self.appid:
                     out.append(Change("config.yaml", "add", f"AdditionalDepots   {d}"))

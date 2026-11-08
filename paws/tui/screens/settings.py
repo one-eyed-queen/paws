@@ -78,12 +78,14 @@ class SettingsScreen(Screen):
         ("4", "goto_category(3)", "Home menu"),
         ("tab", "next_category", "next tab"),
         ("shift+tab", "prev_category", "previous tab"),
+        ("slash", "search", "search"),
     ]
 
     def __init__(self, start="colorblind_on", **kwargs):
         super().__init__(**kwargs)
         self.start = start
         self._cat = 0
+        self._query = ""
 
     def compose(self) -> ComposeResult:
         yield AppHeader("Settings", id="hdr")
@@ -92,13 +94,14 @@ class SettingsScreen(Screen):
                 yield Static(f"[b #5ff0a0]{i + 1}[/] {name}", id=f"nav-{i}", classes="set-tab" + (" -active" if i == 0 else ""))
         yield Menu(id="set-menu", classes="panel")
         yield Static("", id="set-out", classes="panel")
-        yield FooterHelp("1-4 or tab: tabs · [ ] sections · ↑↓ move · enter/space change · ← → choices · esc back")
+        yield FooterHelp("1-4 or tab: tabs · [ ] sections · ↑↓ move · enter/space change · ← → choices · / search · esc back")
         yield JobBar(id="job")
 
     def action_goto_category(self, index: int):
         if not 0 <= index < len(self.CATEGORIES) or index == self._cat:
             return
         self._cat = index
+        self._query = ""
         for i in range(len(self.CATEGORIES)):
             self.query_one(f"#nav-{i}", Static).set_class(i == index, "-active")
         self.rebuild()
@@ -192,7 +195,15 @@ class SettingsScreen(Screen):
             if not (minimal and f in settings.RICED_ONLY) and not settings.hidden_for_now(f)
         ]
         out.append(("Home menu", features))
-        shown = self.CATEGORIES[self._cat][1]
+        words = self._query.lower().split()
+        if words:
+            def hit(row):
+                hay = f"{row[1]} {row[0]} {row[2]} {row[3]}".lower()
+                return all(word in hay for word in words)
+
+            out = [(title, [r for r in rows if hit(r)]) for title, rows in out]
+            out = [(title, rows) for title, rows in out if rows]
+        shown = () if words else self.CATEGORIES[self._cat][1]
         return [
             (title, [r for r in rows if not (minimal and r[0] in RICED_ROWS)])
             for title, rows in out
@@ -404,5 +415,26 @@ class SettingsScreen(Screen):
         if ev.item:
             self.query_one("#set-out", Static).update(ev.item.desc)
 
+    def action_search(self):
+        self.app.push_screen(
+            ModalInput("part of a name, key or description", "Search settings", default=self._query),
+            self._set_query,
+        )
+
+    def _set_query(self, value):
+        self._query = (value or "").strip()
+        if not self.is_attached:
+            return
+        self.rebuild()
+        if self._query:
+            count = sum(len(rows) for _title, rows in self._sections())
+            self.query_one("#set-out", Static).update(
+                f"[#9db0e0]{count} match(es) for \"{self._query}\" - enter changes, esc clears[/]"
+            )
+
     def action_pop(self):
+        if self._query:
+            self._query = ""
+            self.rebuild()
+            return
         self.app.pop_screen()

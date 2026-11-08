@@ -79,7 +79,9 @@ def run_applaunch(appid: str | int, steam: SteamInstall | None, sls: SlsInstall 
 
 def sls_injected() -> bool:
     """is the running steam carrying the sls audit libs. LD_AUDIT only applies at
-    process start, so a live steam we did not launch under injection can't get it now"""
+    process start, so a live steam we did not launch under injection can't get it now.
+    only the memory map counts: LD_AUDIT in the environment just means it was asked for, and
+    ld.so drops a library it can't load (a 64-bit build, a path with quotes in it) and runs on"""
     from .process import helper_pids, steam_pids
 
     if IS_WINDOWS:
@@ -87,13 +89,12 @@ def sls_injected() -> bool:
 
         return port.injected()
     for pid in steam_pids() + helper_pids():
-        for leaf in ("environ", "maps"):
-            try:
-                blob = Path(f"/proc/{pid}/{leaf}").read_bytes().lower()
-            except OSError:
-                continue
-            if any(m in blob for m in (b"slssteam", b"libsls", b"library-inject")):
-                return True
+        try:
+            blob = Path(f"/proc/{pid}/maps").read_bytes().lower()
+        except OSError:
+            continue
+        if any(m in blob for m in (b"slssteam", b"libsls", b"library-inject")):
+            return True
     return False
 
 

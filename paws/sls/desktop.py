@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -15,6 +16,55 @@ _LAUNCHERS = {
 # a separate entry that only ever launches steam with SLSsteam injected. packages used to drop one
 # in the app menu; with only steam.desktop rewritten there is no "SLSsteam" app to click any more.
 SLS_ENTRY = "SLSsteam.desktop"
+
+# the three ways an Exec line carries it: the whole argument quoted (the spec's way), the old mid-argument quote
+# paws used to write, and bare. matched with the file's own \\ escape already undone into _BS
+_BS = "\x00"
+_AUDIT_ARG = re.compile('"LD_AUDIT=((?:[^"\x00]|\x00.)*)"|LD_AUDIT="([^"]*)"|LD_AUDIT=([^\\s"]+)')
+_RESERVED = set(" \t\n\"'\\><~|&;$*?#()`")
+
+
+def _plain(text: str) -> str:
+    return text.replace("\\\\", _BS)
+
+
+def _escaped(text: str) -> str:
+    return text.replace(_BS, "\\\\")
+
+
+def audit_arg(targets) -> str:
+    """LD_AUDIT=<libs> as one Exec argument. the desktop entry spec only lets a quote wrap a whole argument, and
+    some launchers hand LD_AUDIT="..." (a quote in the middle) to steam with the quotes still in it. xdg-open's
+    steam:// handler did: SLSsteam didn't load, and steam deleted the unowned games at start"""
+    arg = "LD_AUDIT=" + ":".join(str(p) for p in targets)
+    if not any(c in _RESERVED for c in arg):
+        return arg
+    quoted = "".join("\\" + c if c in '"`$\\' else c for c in arg)
+    return '"' + quoted.replace("\\", "\\\\") + '"'
+
+
+def audit_values(text: str) -> list[str]:
+    """every LD_AUDIT value in a launcher's Exec lines, however it's quoted"""
+    out = []
+    for whole, old, bare in _AUDIT_ARG.findall(_plain(text)):
+        value = re.sub("\x00(.)", r"\1", whole) if whole else (old or bare).replace(_BS, "\\")
+        if value:
+            out.append(value)
+    return out
+
+
+def requote(text: str) -> str:
+    """the old LD_AUDIT="..." Exec lines rewritten the spec's way, everything else left as it was"""
+    lines = []
+    for line in text.splitlines():
+        if line.startswith("Exec="):
+            line = re.sub(r'LD_AUDIT="([^"]*)"', lambda m: audit_arg(m.group(1).split(":")), line)
+        lines.append(line)
+    return "\n".join(lines) + ("\n" if text.endswith("\n") else "")
+
+
+def needs_requote(text: str) -> bool:
+    return any(line.startswith("Exec=") and 'LD_AUDIT="' in line for line in text.splitlines())
 
 
 def audit_targets(lib_dir: Path) -> list[Path]:
@@ -50,7 +100,7 @@ def write_launcher(sls_dir: Path) -> list[Path]:
         return []
     apps = HOME / ".local/share/applications"
     apps.mkdir(parents=True, exist_ok=True)
-    audit = f'LD_AUDIT="{":".join(str(p) for p in targets)}"'
+    audit = audit_arg(targets)
     wrote = False
     for name, fallback in _LAUNCHERS.items():
         sys_desktop = Path("/usr/share/applications") / name
@@ -116,17 +166,15 @@ def strip_ld_audit(text: str) -> str:
     """
     out = []
     for line in text.splitlines():
-        if "LD_AUDIT=" in line and line.startswith("Exec="):
-            head, _, rest = line.partition("LD_AUDIT=")
-            if rest.startswith('"'):
-                _, _, tail = rest[1:].partition('"')
-            else:
-                _, _, tail = rest.partition(" ")
+        plain = _plain(line)
+        found = _AUDIT_ARG.search(plain) if line.startswith("Exec=") else None
+        if found:
+            head, tail = plain[: found.start()], plain[found.end() :]
             tail = tail.lstrip().lstrip(":").lstrip()
             cleaned = f"{head}{tail}".strip() if tail else head.rstrip()
             if cleaned.startswith("Exec=env") and cleaned.strip() == "Exec=env":
                 cleaned = cleaned.replace("Exec=env", "Exec=steam %U")
-            out.append(cleaned)
+            out.append(_escaped(cleaned))
         else:
             out.append(line)
     return "\n".join(out) + "\n"
@@ -171,9 +219,8 @@ def launcher_targets(apps: Path | None = None) -> list[tuple[Path, list[str]]]:
         # a launcher has one Exec per desktop action, and steam.desktop has a dozen. report the
         # distinct injection once per launcher instead of repeating it for every action.
         seen: set[str] = set()
-        for chunk in text.split("LD_AUDIT=")[1:]:
-            value = chunk.split('"')[1] if '"' in chunk else ""
-            if value and value not in seen:
+        for value in audit_values(text):
+            if value not in seen:
                 seen.add(value)
                 out.append((f, value.split(":")))
     return out

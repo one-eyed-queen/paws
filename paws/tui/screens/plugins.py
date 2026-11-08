@@ -31,6 +31,7 @@ class PluginsScreen(Screen):
             yield Button("Edit", id="b-edit")
             yield Button("Remove", variant="error", id="b-remove")
             yield Button("Master switch", id="b-master")
+            yield Button("Download plugin", id="b-download")
             yield Button("Back", id="b-back")
 
     def on_mount(self):
@@ -56,9 +57,16 @@ class PluginsScreen(Screen):
                 "shared .paws-plugin.zip[/]"
             )
         master = plugins.master_on()
+        loader = plugins.downloader()
+        if loader is None:
+            downloads = "[#9db0e0]no download plugin[/]"
+        elif plugins.missing_patterns(loader):
+            downloads = f"[#ff5c7a]{loader.name} doesn't fit this steam client[/]"
+        else:
+            downloads = f"[#3ddc97]{loader.name} does downloads[/]"
         self.query_one("#plug-status", Static).update(
             f"Plugins config key: [{'#3ddc97' if master else '#ff5c7a'}]{'on' if master else 'off'}[/] "
-            "(off means none of them run, even the ones listed as on below)"
+            f"(off means none of them run, even the ones listed as on below) · {downloads}"
         )
 
     def set_out(self, text: str):
@@ -200,6 +208,43 @@ class PluginsScreen(Screen):
     def _master(self):
         plugins.set_master(not plugins.master_on())
         self.refresh_list()
+
+    @on(Button.Pressed, "#b-download")
+    def _download(self):
+        if (plugins.plugins_dir() / plugins.DOWNLOAD).is_file():
+            self.app.push_screen(
+                Confirm(
+                    f"Set {plugins.DOWNLOAD} aside?\nthe public build stops downloading until it's back "
+                    "(it goes to plugins-disabled, Enable/Disable brings it back). steam has to be closed",
+                    "Download plugin",
+                ),
+                lambda yes: yes and self._download_job(plugins.remove_download),
+            )
+            return
+        self.app.push_screen(
+            Confirm(
+                f"Get SLSsteam's download plugin ({plugins.DOWNLOAD}, sha256 {plugins.DOWNLOAD_SHA256[:12]}…)?\n"
+                "it's what lets the public build download games with their real size: it runs inside steam, puts "
+                "your games' depots and keys in, and asks gmrc.wudrm.com for the manifest codes valve refuses.\n"
+                "fetched from enter-the-wired's github release. DisableUpdates goes off (it makes steam show 0 B). "
+                "it loads the next time steam starts",
+                "Download plugin",
+            ),
+            lambda yes: yes and self._download_job(plugins.install_download),
+        )
+
+    def _download_job(self, action):
+        self.app.run_job("download plugin", lambda progress: action(), self._download_done)
+
+    def _download_done(self, result):
+        if isinstance(result, Exception):
+            self.refresh_list(f"[#ff7a8a]{result}[/]")
+            return
+        if result.get("path"):
+            when = "restart steam" if result.get("restart_steam") else "start steam"
+            self.refresh_list(f"[#5ff0a0]installed {result['path']}[/]: {when} through paws to load it")
+        else:
+            self.refresh_list(f"set aside: {result['removed']}" if result.get("removed") else "it wasn't installed")
 
     @on(Button.Pressed, "#b-back")
     def _back(self):

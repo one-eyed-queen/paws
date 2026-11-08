@@ -9,6 +9,10 @@ private builds from 2026-11 read AdditionalPackageApps, their own template: "Add
 Use this instead of AdditionalApps for every game you want to download via the Steam client itself". older private
 builds read AdditionalPackages (the game's store package) and AdditionalDepots instead.
 
+the public build downloads too with SLSsteam's download plugin (sls/plugins.py): it reads AdditionalDepots and
+DecryptionKeys itself and fetches the manifest request codes, so with it the game stays in AdditionalApps and its
+keyed depots go in AdditionalDepots, the way the SLSsteam author's own convert-lua writes them.
+
 SLSsteam's AdditionalApps overrides the game's owner, and with DisableUpdates on it also makes steam's update info for
 that app fail (Apps::shouldDisableUpdates, hooks.cpp GetAppUpdateInfo). steam then has nothing to download and shows
 0 B. builds that read AdditionalPackages can give the game a real license instead: its store package plus its AppIds
@@ -26,6 +30,17 @@ _SUPPORT: dict = {}
 
 
 def build_keys() -> frozenset[str]:
+    """the PRIVATE_ONLY keys something in this SLSsteam reads: the .so itself, or a lua plugin it runs"""
+    try:
+        from ..sls.plugins import keys_read
+
+        extra = keys_read() & frozenset(PRIVATE_ONLY)
+    except Exception:
+        extra = frozenset()
+    return so_keys() | extra
+
+
+def so_keys() -> frozenset[str]:
     """the PRIVATE_ONLY keys the installed SLSsteam .so reads, asked of the binary itself: a build that reads a key
     has its name in it. its res/config.yaml template isn't proof either way, and neither is the config"""
     try:
@@ -49,8 +64,25 @@ def reads(key: str) -> bool:
 
 
 def packages_supported() -> bool:
-    """is the installed SLSsteam a private build, one that can download? the public one reads none of PRIVATE_ONLY"""
-    return bool(build_keys() & {"AdditionalPackages", "AdditionalPackageApps", "DecryptionKeys"})
+    """is the installed SLSsteam .so a private build, one that downloads by itself? the public one reads none of
+    PRIVATE_ONLY. a download plugin doesn't count here: with it the game still goes in through AdditionalApps"""
+    return bool(so_keys() & {"AdditionalPackages", "AdditionalPackageApps", "DecryptionKeys"})
+
+
+def plugin_downloads() -> bool:
+    """a public build that downloads through SLSsteam's download plugin"""
+    if packages_supported():
+        return False
+    try:
+        from ..sls.plugins import download_ready
+
+        return download_ready()
+    except Exception:
+        return False
+
+
+def can_download() -> bool:
+    return packages_supported() or plugin_downloads()
 
 
 # config keys only private builds read (checked against public 20261106120254 and the 2026-09 and 2026-11 private .so);
@@ -84,7 +116,9 @@ def build_reads(key: str) -> bool:
 
 def drop_private_sections(config_path=None) -> list[str]:
     """public build: the private-only sections do nothing there, so they go. their keys are kept first (paws' own
-    store, and steam's config.vdf where they actually work). returns the sections removed"""
+    store, and steam's config.vdf where they actually work). a section a live plugin reads stays: that's the
+    download plugin's data, and taking it out is the headcrab bug ASSella's lobster.lua exists to undo.
+    returns the sections removed"""
     from .. import config
     from ..util import backup
     from ..config.io import raw_lines, write
@@ -105,7 +139,7 @@ def drop_private_sections(config_path=None) -> list[str]:
     gone, drop = [], set()
     for name in PRIVATE_ONLY:
         index = section_index(lines, name)
-        if index is None:
+        if index is None or reads(name):
             continue
         end = block_end_line(lines, index)
         start = index

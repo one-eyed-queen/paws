@@ -105,6 +105,19 @@ AsciiPanel {
     width: 1fr;
 }
 
+MenuPanel.-scroll {
+    align: left top;
+}
+MenuPanel.-scroll #menu-panel-title {
+    display: none;
+}
+MenuPanel.-scroll #menu-body {
+    height: 1fr;
+}
+MenuPanel.-scroll #menu-body > #menu {
+    height: 1fr;
+}
+
 #menu-body > #menu {
     width: 1fr;
     height: auto;  /* border hugs the items */
@@ -831,7 +844,7 @@ ListItem.-highlight, ListView > ListItem.-highlight {
 }
 #plug-buttons {
     layout: grid;
-    grid-size: 2 4;
+    grid-size: 3 3;
     grid-gutter: 1 1;
     grid-rows: auto;
     height: auto;
@@ -955,7 +968,9 @@ RadioButton > .toggle--label {
     height: 100%;
 }
 #detail-top {
-    height: 8;
+    height: auto;
+    min-height: 3;
+    max-height: 8;
     overflow: hidden;
 }
 #detail-keys {

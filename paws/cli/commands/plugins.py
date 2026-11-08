@@ -35,7 +35,35 @@ def add_parser(subparsers, common):
 
     master = sp.add_parser("master", parents=[common], help="the Plugins config key: on/off for all of them at once")
     master.add_argument("state", nargs="?", choices=["on", "off"])
+
+    download = sp.add_parser(
+        "download",
+        parents=[common],
+        help="add SLSsteam's download plugin, so the public build downloads games with their real size",
+    )
+    download.add_argument("--remove", action="store_true", help="set it aside again (it goes to plugins-disabled)")
     return p
+
+
+def _download(args) -> int:
+    if args.remove:
+        result = plugins.remove_download()
+        text = f"set aside: {result['removed']}" if result["removed"] else "the download plugin isn't installed"
+    else:
+        result = plugins.install_download()
+        text = f"installed {result['path']}"
+        if result["plugins_turned_on"]:
+            text += "\nPlugins was off, it's on now"
+        if result["updates_turned_on"]:
+            text += "\nDisableUpdates is off now: with it on, steam shows 0 B next to these games instead of their size"
+        if result["sections_added"]:
+            text += f"\nadded {', '.join(result['sections_added'])} to config.yaml"
+        if result["restart_steam"]:
+            text += "\nsteam is running: restart it (through paws or the SLSsteam launcher) to load the plugin"
+        else:
+            text += "\nstart steam through paws (or the SLSsteam launcher) to load it"
+    print(json.dumps(result) if args.json else text)
+    return 0
 
 
 def _list(args) -> int:
@@ -45,12 +73,20 @@ def _list(args) -> int:
         return 0
     if not found:
         print("no plugins yet: `paws plugins new <name>` to write one, or `paws plugins import <file>`")
+        print("on the public build games stay at 0 B without the download plugin: `paws plugins download` adds it")
         return 0
+    loader = plugins.downloader()
     for p in found:
         state = "on " if p.enabled else "off"
         extra = f"  {p.author}" if p.author else ""
-        print(f"[{state}] {p.name:24} {p.version:>8}{extra}  {p.desc}")
+        role = ""
+        if loader is not None and p.path == loader:
+            missing = plugins.missing_patterns(loader)
+            role = "  (does downloads" + (", doesn't fit this steam client)" if missing else ")")
+        print(f"[{state}] {p.name:24} {p.version:>8}{extra}  {p.desc}{role}")
     print(f"\nPlugins config key is {'on' if plugins.master_on() else 'off'} (`paws plugins master on` to flip it)")
+    if loader is None:
+        print("no download plugin: on the public build games stay at 0 B. `paws plugins download` adds it")
     return 0
 
 
@@ -77,6 +113,8 @@ def run(args) -> int:
             if args.state is not None:
                 plugins.set_master(args.state == "on")
             print("Plugins:", "on" if plugins.master_on() else "off")
+        elif action == "download":
+            return _download(args)
         else:
             return _list(args)
     except SlsError as error:

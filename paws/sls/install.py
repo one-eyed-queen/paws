@@ -208,6 +208,36 @@ def _find_libs(root: Path) -> tuple[list[Path], Path]:
     return flat, root
 
 
+def client_bits() -> set[int]:
+    """32 and/or 64: the steamclient.so builds a steam process here loads, and so the ones SLSsteam can hook.
+    linux64/steamclient.so is the one games use, not the client, so it doesn't count"""
+    from ..steam.find import find_steam
+    from ..util import elf
+
+    try:
+        steam = find_steam()
+    except (ImportError, OSError):
+        return set()
+    if not steam or not steam.root:
+        return set()
+    found = {elf.bits(Path(steam.root) / d / "steamclient.so") for d in ("ubuntu12_32", "ubuntu12_64")}
+    return {b for b in found if b}
+
+
+def bits_problem(library) -> str | None:
+    """why steam can't load this SLSsteam library, when its word size matches no steam client here"""
+    from ..util import elf
+
+    have, want = elf.bits(library), client_bits()
+    if not have or not want or have in want:
+        return None
+    other = "/".join(str(b) for b in sorted(want))
+    return (
+        f"it's a {have}-bit build and your steam client is {other}-bit, so steam can't load it (ld.so says "
+        f"'wrong ELF class' and starts steam without it). ask whoever made it for the {other}-bit build"
+    )
+
+
 def _install_staged(
     source,
     name,
@@ -242,6 +272,9 @@ def _install_staged(
         )
     if not any(p.name.lower() in main_names for p in usable):
         raise SlsError(f"{archive.name} has helpers but no SLSsteam library ({', '.join(p.name for p in usable)})")
+    wrong = bits_problem(next(p for p in usable if p.name.lower() in main_names))
+    if wrong:
+        raise SlsError(f"{archive.name}: {wrong}. nothing was changed")
 
     destination.mkdir(parents=True, exist_ok=True)
     # drop libraries left over from a previous install before writing the new ones. installing the

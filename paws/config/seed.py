@@ -42,9 +42,9 @@ def missing_keys(path: Path | None = None) -> list[str]:
     return [k for k in ordered_keys() if k not in present and build_reads(k)]
 
 
-def fill_missing(path: Path | None = None) -> list[str]:
+def fill_missing(path: Path | None = None, only=None) -> list[str]:
     path = path or ensure_config()
-    missing = missing_keys(path)
+    missing = [k for k in missing_keys(path) if only is None or k in only]
     if not missing:
         return []
     backup_file(path)

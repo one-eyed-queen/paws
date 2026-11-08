@@ -7,6 +7,40 @@ from ..util import pkgmgr
 from .result import CheckResult
 
 
+def _plugin_checks() -> list:
+    """the public build downloads only with the download plugin, so say which of the two this is"""
+    from ..games.download import known_build, packages_supported
+    from ..sls import plugins
+
+    if not known_build() or packages_supported():
+        return []
+    plugin = plugins.downloader()
+    if plugin is None:
+        return [
+            CheckResult(
+                True,
+                "Downloads",
+                "public build without the download plugin: games show up but stay at 0 B. "
+                "`paws plugins download` adds it",
+                "info",
+            )
+        ]
+    if not plugins.master_on():
+        return [CheckResult(False, "Download plugin off", f"{plugin.name} is there but Plugins is off", "warn")]
+    missing = plugins.missing_patterns(plugin)
+    if missing:
+        return [
+            CheckResult(
+                False,
+                "Download plugin outdated",
+                f"{plugin.name}: {len(missing)} of its patterns aren't in this steam client, it can't hook it",
+                "error",
+            )
+        ]
+    fits = "fits this steam client" if missing == [] else "can't check it against the steam client"
+    return [CheckResult(True, "Download plugin", f"{plugin.name} is on and {fits}: games download through steam", "ok")]
+
+
 def sls_checks(sls) -> list:
     if os.name == "nt":
         from ..windows import port
@@ -88,6 +122,12 @@ def sls_checks(sls) -> list:
             "ok",
         )
     ]
+    from ..sls.install import bits_problem
+
+    wrong = bits_problem(sls.sls_so) if sls.sls_so else None
+    if wrong:
+        out.append(CheckResult(False, "SLSsteam can't load", f"{sls.sls_so}: {wrong}", "error"))
+    out += _plugin_checks()
     if headcrab:
         out.append(CheckResult(True, "HeadCrab found", f"{len(headcrab)} thing(s) of it on this machine (it's an SLSsteam build)", "info"))
     deck = sls_module.family.decky_tools()
