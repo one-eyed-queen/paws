@@ -13,6 +13,7 @@ NAMES = (
     "edit",
     "sls",
     "plugins",
+    "steam",
     "alias",
     "desktop",
     "tickets",

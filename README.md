@@ -6,7 +6,7 @@
 <p align="center">
   <img src="assets/image.png" alt="paws app preview" width="800" align="middle">
 </p>
-<p align="center"><b>v4.4.127</b> - public release version numbers: the last number (X.Y.<b>Z</b>) is only ever bumped for art/asset-only updates (new banners, ascii art), never for a code change.</p>
+<p align="center"><b>v4.5.127</b> - public release version numbers: the last number (X.Y.<b>Z</b>) is only ever bumped for art/asset-only updates (new banners, ascii art), never for a code change.</p>
 
 
 
@@ -51,12 +51,11 @@ paws only edits the lines it needs to. ur comments, ur order and every value u d
 - **`paws fix`** — finds what's broken (indentation, wrong values, typos in config.yaml) and repairs it
 - **`paws info`** — os, steam, and whatever is driving it, in one line each
 - **plugins / add-ons** — make, import, export and switch SLSsteam plugins on and off
+- **steam tinker** — the steam client itself: 32 or 64 bit, stable or beta, hold updates, roll back to an older release (`paws steam`)
 - **share tickets** — pack a game's tickets into one line of text and send it to someone (`paws tickets share` / `take`)
 - **shell alias, ascii art gallery, colour blind modes and 4 mini games** (tetris, snake, brick breaker, 2048; riced only)
 - **tells u when things finish**
 - **updates itself** when u open it (git, fast-forward only, skips if ur offline)
-
-  join discord server discord.gg/9Nr3JuN8VK for support and plugins
 
 ## works with
 
@@ -267,7 +266,7 @@ paws does all of this for u when u add a game (drag and drop, add game, or the l
 3. the `.manifest` files into steam's depotcache, and `ManifestIds:` / `AppTokens:` / `DlcData:` as needed
 4. none of the private-only sections (`AdditionalPackageApps`, `AdditionalPackages`, `DecryptionKeys`, `AdditionalDepots`, `CloudProxies`, `InventoryItems`), unless a plugin reads them (below). if ur config has ones nothing reads, the fixer moves their keys out and removes them
 
-**public build + the download plugin** downloads too. `download.lua` is an SLSsteam lua plugin (the one enter-the-wired and ASSella ship) that does what private builds do natively: it puts the game's depots into package 0 so steam counts them as yours, hands steam the keys, and fetches the manifest codes valve refuses. add it with `paws plugins download` or **Plugins > Download plugin** (paws only installs the exact file it checked, by sha256, and never adds it by itself because it runs inside steam). steam can stay open: the plugin loads the next time steam starts. it also turns `DisableUpdates` off, because with it on SLSsteam fails steam's update info for every `AdditionalApps` game, and that's where steam gets a download's size and progress, so the game shows 0 B. then paws writes:
+**public build + the download plugin** downloads too. `download.lua` is an SLSsteam lua plugin (see credits) that does what private builds do natively: it puts the game's depots into package 0 so steam counts them as yours, hands steam the keys, and fetches the manifest codes valve refuses. paws ships its own copy, so it works even offline or if the place it came from disappears. add it with `paws plugins download` or **Plugins > Download plugin** (paws only installs that exact file, checked by sha256, and never adds it by itself because it runs inside steam). steam can stay open: the plugin loads the next time steam starts. it also turns `DisableUpdates` off, because with it on SLSsteam fails steam's update info for every `AdditionalApps` game, and that's where steam gets a download's size and progress, so the game shows 0 B. then paws writes:
 
 1. the game in `AdditionalApps:` and `AppIds:`, like the plain public build
 2. every keyed depot except the game itself in `AdditionalDepots:`, and the keys in `DecryptionKeys:` (the same layout SLSsteam's own convert-lua prints)
@@ -281,7 +280,7 @@ every row gets the game's full name as a comment. `paws doctor` tells u which bu
 
 **"no internet connection" when a download starts** isn't ur internet. steam asks valve for a code for each depot's manifest, valve says "Access Denied" for a game u don't own, and steam shows that as no connection. private builds and the download plugin get that code themselves, the plain public build can't. `paws doctor` reads steam's own download log and tells u which depot it was.
 
-**steam deletes a game u downloaded some other way** (DepotDownloader and friends) at its next start when nothing gives it a license for the depots, so on the plain public build files u put there by hand don't stay. with the download plugin steam downloads and keeps them itself.
+**steam deletes a game u downloaded some other way** (an outside depot downloader) at its next start when nothing gives it a license for the depots, so on the plain public build files u put there by hand don't stay. with the download plugin steam downloads and keeps them itself.
 
 **a 64-bit SLSsteam won't load into steam.** the steam client is 32-bit, so a build made for 64-bit gets "wrong ELF class" from the loader and steam starts without it (then it removes the games u don't own). paws refuses to install one and `paws doctor` flags one that's already there.
 
@@ -303,6 +302,17 @@ the install screen is three buttons in one row — **Install**, **Update**, **Un
 the builds that can't run on your system stay visible but greyed out with the reason next to them, so you can see the whole family. which ones are greyed comes from the os detector, so it can't disagree with `paws info`.
 
 **Update** and **Uninstall** work the same way, and both say plainly when they did nothing and why, instead of reporting a job that quietly changed nothing.
+
+**32 or 64 bit has to match.** steam on linux has two clients now: the old 32-bit one (`ubuntu12_32`, what starts by default) and valve's 64-bit one (`steamrt64`). an SLSsteam build only loads into the client of its own bitness, so a `x86_64` or `AArch64` build gets refused while steam runs 32-bit (and AArch64 is arm, it never runs on a normal pc). to use an x86_64 build, switch the client first: **Steam Tinker > 32 / 64 bit** or `paws steam arch 64`, then install it. `paws steam` shows both sides.
+
+### steam tinker
+
+everything here is steam's own switches, nothing gets patched, and it all applies the next time steam starts (close steam first):
+
+- **32 / 64 bit** — which client starts. it's the `.steam-enable-steamrt64-client` file steam.sh looks for
+- **channel** — stable, beta (`publicbeta`), steam deck stable / beta, or any branch name. paws checks valve has it before writing `package/beta`
+- **hold updates** — `BootStrapperInhibitAll=enable` in `steam.cfg`, so an update can't break SLSsteam under you. the rest of steam.cfg is left alone
+- **roll back** — for when a steam update broke SLSsteam. pick a date: the old release list comes from the web archive, the files from valve's own servers (they keep old ones), and steam's updater installs them through a relay on 127.0.0.1. then updates get held so it stays there. 32-bit stable only (that's what got archived). **Update to newest** undoes it
 
 ## what paws looks for
 
@@ -377,6 +387,12 @@ all of those take `--dry-run` to show what would change without changing it.
                             a private build from a repo link or a .zip/.7z (sources: github, private, forgejo, local)
     paws plugins            new / import / export / enable / disable plugins, `master on|off` for all of them
     paws plugins download   add SLSsteam's download plugin so the public build downloads (--remove sets it aside)
+    paws steam              the steam client: version, 32/64 bit, channel, held or not, and if SLSsteam fits
+    paws steam arch 64      start steam's 64-bit client (32 goes back). close steam first
+    paws steam channel publicbeta   or stable, steamdeck_stable, steamdeck_publicbeta
+    paws steam hold on|off  stop or allow steam updating itself
+    paws steam builds       older client releases you can roll back to
+    paws steam rollback 20261006    put the 32-bit client on that release and hold it
     paws update             get the newest paws (--check just looks)
     paws update --force     update even when git would stop: local changes get stashed, then it resets
                             onto the remote tip. same on any shell, any os (--no-stash discards them instead)
@@ -409,14 +425,32 @@ everything paws adds is written in a journal, so removing a game takes out exact
 
 the awesome gang without which this would not exist, so go say hi (and scroll to the end of the file, i have a surprise):
 
-- [AceSLS](https://github.com/AceSLS)
-- [niwia](https://github.com/niwia)
-- [Deadboy666](https://github.com/Deadboy666)
-- [xamionex](https://github.com/xamionex)
+- [AceSLS](https://github.com/AceSLS) — made SLSsteam, the whole thing paws is built around
+- [niwia](https://github.com/niwia) — ASSfixer, ASSella, SLSah and the steam deck guides
+- [Deadboy666](https://github.com/Deadboy666) — HeadCrab
+- [xamionex](https://github.com/xamionex) — slsconfigurator and SLScheevo
 - [ke619](https://github.com/ke619)
 - [Arata12](https://github.com/Arata12)
-- [petar](https://git.petar.cc/petar)
-- [ciscosweater](https://github.com/ciscosweater) (enter-the-wired, where paws gets the download plugin)
+- [petar](https://git.petar.cc/petar) — slsconfigurator
+- [ciscosweater](https://github.com/ciscosweater) — enter-the-wired and psyche
+
+and the projects paws uses or learned from:
+
+- [SLSsteam](https://github.com/AceSLS/SLSsteam) by AceSLS — the engine paws installs, updates and configures. its config docs, lua plugin and API docs, and the private builds' convert-lua (the AdditionalDepots / DecryptionKeys layout) are what paws writes against
+- `download.lua`, the SLSsteam download plugin, as released in [enter-the-wired](https://github.com/ciscosweater/enter-the-wired) by ciscosweater (MIT, license shipped next to it in `paws/data/plugins`). paws ships that exact file. the same file is in [ASSella](https://github.com/niwia/ASSella) and [lumaforge-panel](https://github.com/eisora08/lumaforge-panel)
+- [ASSella](https://github.com/niwia/ASSella) by niwia — its AT0-M mode showed how a public build downloads through steam with a plugin (AdditionalApps + AdditionalDepots + DecryptionKeys), and that a config fixer must never strip those
+- [ASSfixer](https://github.com/niwia/ASSfixer) by niwia — the idea behind paws' config schema-drift check and auto-restore
+- [h3adcr-b (HeadCrab)](https://github.com/Deadboy666/h3adcr-b) and [h3adcr-b-modul3s](https://github.com/Deadboy666/h3adcr-b-modul3s) by Deadboy666 — the installer paws can run, and how it wires LD_AUDIT
+- [psyche](https://github.com/ciscosweater/psyche) by ciscosweater — showed `setdepotkey()` is a real lua convention
+- [Hollow-Steam](https://forgejo.servergamer.win/Parasitic_Hollow/Hollow-Steam) — an SLSsteam build paws can install from forgejo
+- slsconfigurator by petar / xamionex, hollow-decky, SLSConfig-Decky, [TOST](https://github.com/sadabx/TOST) by sadabx and the tachilabs tools — front-ends for the same config that paws recognises
+- [CloudRedirect](https://github.com/Selectively11/CloudRedirect) by Selectively11 — cloud saves for unowned games, paws knows to leave it alone
+- the greasyfork [SteamDB App Parser](https://greasyfork.org/en/scripts/543010-steamdb-app-parser) script — its logic is how paws turns a game page into config rows
+- [SteamDB](https://steamdb.info) and [steamcmd.net](https://www.steamcmd.net) — game, depot and package info
+- [Nerd Fonts](https://www.nerdfonts.com) — the menu icons
+- the [Internet Archive's Wayback Machine](https://web.archive.org) — its saved copies of valve's steam client release lists are what steam tinker's roll back installs from
+- valve's own `steam.sh` and updater — the 64-bit client switch, `package/beta`, `BootStrapperInhibitAll` and `-overridepackageurl` are all theirs, paws just flips them
+- [LuaToolsLinux](https://github.com/Star123451/LuaToolsLinux) by StarWarsK & geovanygrdt, [luatools-moon / slsteam-moon](https://github.com/swwayps/luatools-moon) by swwayps and [SteaMidra](https://github.com/Midrags/SFF) by Midrags — read while fixing 0 B: a "purchase error" means steam started without SLSsteam, and files dropped in by hand don't stay
 
 <p align="center">
   <img src="assets/moan.png" alt="" width="300">

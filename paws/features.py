@@ -89,6 +89,16 @@ FEATURES: tuple[Feature, ...] = (
         needs_sls=True,
     ),
     Feature(
+        "tinker",
+        "Steam Tinker",
+        "Steam client: 32 / 64 bit, stable / beta, hold updates, roll back",
+        "tinker",
+        "arch, channel, version",
+        "screens.tinker",
+        "TinkerScreen",
+        needs_steam=True,
+    ),
+    Feature(
         "art",
         "ASCII art / banner",
         "Pick the home banner from the gallery",

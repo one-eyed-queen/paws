@@ -111,12 +111,13 @@ def check_launchers(apps: Path | None = None) -> list[Problem]:
 _AUDIT_FAIL = re.compile(r"ld\.so: object '([^']*)' cannot be loaded as audit interface: ([^;\n]*)")
 
 
-def load_failure(log_text: str) -> str | None:
-    """the loader's own words for dropping SLSsteam, from steam's console-linux.txt. ELFCLASS32 is steam's 64-bit
-    helpers turning down the 32-bit library, which happens on every working start too, so it never counts"""
+def load_failure(log_text: str, client_bits: int = 32) -> str | None:
+    """the loader's own words for dropping SLSsteam, from steam's console-linux.txt. a library of the client's own
+    class turned down (ELFCLASS32 on the 32-bit client) is steam's helpers of the other bitness doing it, which
+    happens on every working start too, so it never counts"""
     found = None
     for path, why in _AUDIT_FAIL.findall(log_text):
-        if "sls" in path.lower() and "ELFCLASS32" not in why:
+        if "sls" in path.lower() and f"ELFCLASS{client_bits}" not in why:
             found = f"{why.strip()} ({path})"
     return found
 
@@ -136,7 +137,9 @@ def check_steam_without_sls() -> list[Problem]:
     except (ImportError, OSError):
         return []
     log = safe_read(Path(steam.root) / "logs" / "console-linux.txt") if steam and steam.root else None
-    why = load_failure(log or "")
+    from ...steam.tinker import active_bits
+
+    why = load_failure(log or "", active_bits(Path(steam.root)) if steam and steam.root else 32)
     return [
         Problem(
             "steam.sls-not-loaded",

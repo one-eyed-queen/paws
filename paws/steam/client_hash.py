@@ -51,6 +51,10 @@ class ClientCheck:
 def client_path(steam: SteamInstall | None) -> Path | None:
     if steam is None or steam.root is None:
         return None
+    from .tinker import active_bits, active_client
+
+    if active_bits(steam.root) == 64:
+        return active_client(steam.root)
     for d in CLIENT_DIRS:
         p = steam.root / d / "steamclient.so"
         if p.exists():

@@ -32,6 +32,7 @@ PLAIN = {
     "terminal": ">",
     "banner": "▨",
     "games": "♦",
+    "tinker": "⚙",
 }
 
 _MODE: str | None = None

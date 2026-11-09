@@ -225,16 +225,17 @@ def export_plugin(name: str, dest_dir: Path) -> Path:
 
 
 # ---- the download plugin ----------------------------------------------------------------------
-# a plugin can read config keys the .so never does, and that's how the public build downloads. download.lua (what
-# enter-the-wired and ASSella ship) does what private builds do natively: it puts AdditionalDepots into package 0 so
-# steam counts those depots as yours, hands steam the DecryptionKeys when it asks its config store for a depot key,
-# and fetches the manifest request code valve refuses for a game you don't own. without it every game on a public
-# build sits at 0 B, and steam deletes an unlicensed game's files at its next start
+# a plugin can read config keys the .so never does, and that's how the public build downloads. download.lua does what
+# private builds do natively: it puts AdditionalDepots into package 0 so steam counts those depots as yours, hands
+# steam the DecryptionKeys when it asks its config store for a depot key, and fetches the manifest request code valve
+# refuses for a game you don't own. without it every game on a public build sits at 0 B, and steam deletes an
+# unlicensed game's files at its next start
 
 DOWNLOAD = "download.lua"
-# byte for byte the download.lua in enter-the-wired's release, ASSella and lumaforge-panel. paws installs this one
-# only: a plugin runs any code it likes inside steam
+# paws ships this exact file (data/plugins, license next to it) and installs no other: a plugin runs any code it likes
+# inside steam. the urls are only for an install that lost its copy
 DOWNLOAD_SHA256 = "8e822aecfea085cfcada45b9ed0e8f2c09bc04b76c667cc1904342c9197be627"
+BUNDLED = Path(__file__).resolve().parent.parent / "data" / "plugins" / DOWNLOAD
 DOWNLOAD_SOURCES = (
     ("https://github.com/ciscosweater/enter-the-wired/releases/download/latest/plugins-deps.zip", DOWNLOAD),
     (
@@ -303,7 +304,7 @@ def download_ready() -> bool:
 
 
 def steam_client() -> Path | None:
-    """the 32-bit steamclient.so SLSsteam and its plugins hook"""
+    """the steamclient.so SLSsteam and its plugins hook: 32-bit, or 64-bit on steam's steamrt64 client"""
     try:
         from ..steam.find import find_steam
 
@@ -312,8 +313,9 @@ def steam_client() -> Path | None:
         return None
     if not steam or not steam.root:
         return None
-    client = Path(steam.root) / "ubuntu12_32" / "steamclient.so"
-    return client if client.is_file() else None
+    from ..steam.tinker import active_client
+
+    return active_client(Path(steam.root))
 
 
 _CODE: dict = {}
@@ -339,12 +341,27 @@ def missing_patterns(path: Path) -> list[str] | None:
     return [p for p in patterns if not elf.matches(p, code)] if code else None
 
 
+def bundled_download() -> bytes | None:
+    """paws' own copy, when it's there and still the checked file"""
+    import hashlib
+
+    try:
+        data = BUNDLED.read_bytes()
+    except OSError:
+        return None
+    return data if hashlib.sha256(data).hexdigest() == DOWNLOAD_SHA256 else None
+
+
 def fetch_download() -> bytes:
+    """the shipped copy, or the same file from the web when this install lost it"""
     import hashlib
     import io
 
     from ..util import http
 
+    shipped = bundled_download()
+    if shipped is not None:
+        return shipped
     tried = []
     for url, member in DOWNLOAD_SOURCES:
         try:

@@ -31,7 +31,7 @@ version = { attr = "paws.__version__" }
 include = ["paws*"]
 
 [tool.setuptools.package-data]
-"paws.data" = ["*.json", "ascii/*.txt", "ascii/*.json", "ascii/sfw/*.txt", "ascii/nsfw/*.txt", "img/*.png"]
+"paws.data" = ["*.json", "ascii/*.txt", "ascii/*.json", "ascii/sfw/*.txt", "ascii/nsfw/*.txt", "img/*.png", "plugins/*.lua", "plugins/*.LICENSE"]
 "paws.tui" = ["*.tcss"]
 
 [tool.ruff]

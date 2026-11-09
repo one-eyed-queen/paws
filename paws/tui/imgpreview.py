@@ -1,12 +1,30 @@
 from __future__ import annotations
 
+import atexit
 import re
+import shutil
+import tempfile
 from pathlib import Path
 
 from ..util import http
 
 HOME = Path.home()
-CACHE = HOME / ".cache/paws/img"
+# store pictures only live while paws runs: they used to pile up in ~/.cache/paws/img forever.
+# CACHE stays None (a private temp folder, removed on exit) unless something points it elsewhere
+CACHE: Path | None = None
+OLD_CACHE = HOME / ".cache/paws/img"
+_temp: Path | None = None
+
+
+def _folder() -> Path:
+    global _temp
+    if CACHE is not None:
+        return CACHE
+    if _temp is None:
+        _temp = Path(tempfile.mkdtemp(prefix="paws-img-"))
+        atexit.register(shutil.rmtree, _temp, True)
+        shutil.rmtree(OLD_CACHE, ignore_errors=True)  # what older versions left behind
+    return _temp
 
 
 def fetch(url: str, timeout: int = 20) -> bytes | None:
@@ -18,7 +36,7 @@ def fetch(url: str, timeout: int = 20) -> bytes | None:
 
 def _cache_path(url):
     key = re.sub(r"[^A-Za-z0-9._-]+", "_", url.split("?")[0])[:80] or "img"
-    return CACHE / key
+    return _folder() / key
 
 
 def cached_path(url: str) -> Path | None:
@@ -30,7 +48,7 @@ def cached_path(url: str) -> Path | None:
         if not data:
             return None
         try:
-            CACHE.mkdir(parents=True, exist_ok=True)
+            p.parent.mkdir(parents=True, exist_ok=True)
             p.write_bytes(data)
         except OSError:
             pass

@@ -266,6 +266,20 @@ try:
 finally:
     asked.kill()
 
+# ---- the shipped download.lua: no network, no outside repo needed --------------------------------------------
+check("paws ships download.lua", plugins.BUNDLED.is_file())
+check("the shipped copy is the checked one", plugins.bundled_download() is not None)
+check("its license ships next to it", (plugins.BUNDLED.parent / "download.lua.LICENSE").is_file())
+
+
+def offline(*a, **k):
+    raise OSError("offline")
+
+
+with mock.patch("paws.steam.is_running", lambda: False), mock.patch("paws.util.http.get", offline):
+    plugins.install_download()
+check("installed offline from the shipped copy", hashlib.sha256(installed.read_bytes()).hexdigest(), plugins.DOWNLOAD_SHA256)
+
 patch_sls.stop()
 print("passed:", P)
 print("failed:", len(F))

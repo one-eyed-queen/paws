@@ -2,6 +2,7 @@
   "$comment": "Menu glyphs. Use nerd-font codepoints when a nerd font is available, else the ASCII fallback.",
   "icons": {
     "home": ["\ue69b", "H"],
+    "tinker": ["\uf0ad", "T"],
     "status": ["\ueb6b", "S"],
     "install": ["\uec06", "I"],
     "add": ["\uf055", "+"],

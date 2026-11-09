@@ -224,7 +224,7 @@ VerticalScroll {
     padding: 1 2 1 2;
 }
 
-#bulk-buttons, #remove-actions, #repair-buttons, #sls-buttons, #plug-buttons, #add-inputs, #add-buttons, #add-split, #act-inputs, #add-actions, #act-actions, #act-actions-use, #act-make, #act-use {
+#bulk-buttons, #remove-actions, #repair-buttons, #sls-buttons, #plug-buttons, #tink-buttons, #add-inputs, #add-buttons, #add-split, #act-inputs, #add-actions, #act-actions, #act-actions-use, #act-make, #act-use {
     height: auto;
 }
 
@@ -328,7 +328,7 @@ ModalInput, Confirm, ModalInfo, ModalPaste, ModalPick {
     width: 100%;
 }
 
-#bulk-out, #repair-out, #sec-out, #sls-out, #plug-out, #add-hint, #act-out, #remove-out {
+#bulk-out, #repair-out, #sec-out, #sls-out, #plug-out, #tink-out, #add-hint, #act-out, #remove-out {
     height: auto;
     background: transparent;
     padding: 1 2 1 2;
@@ -530,7 +530,7 @@ DropScreen {
 }
 
 /* output boxes keep one height so nothing jumps */
-#set-out, #sec-out, #sls-out, #plug-out, #act-out, #remove-out, #add-hint, #bulk-out, #repair-out {
+#set-out, #sec-out, #sls-out, #plug-out, #tink-out, #act-out, #remove-out, #add-hint, #bulk-out, #repair-out {
     min-height: 5;
 }
 #set-out {
@@ -837,10 +837,21 @@ ListItem.-highlight, ListView > ListItem.-highlight {
 }
 
 /* ---- per screen touches ---- */
-#sls-status, #plug-status {
+#sls-status, #plug-status, #tink-status {
     height: auto;
     margin: 1 2 0 2;
     padding: 0 1;
+}
+#tink-buttons {
+    layout: grid;
+    grid-size: 3 2;
+    grid-gutter: 1 1;
+    grid-rows: auto;
+    height: auto;
+    margin: 1 2 0 2;
+}
+#tink-buttons Button {
+    width: 100%;
 }
 #plug-buttons {
     layout: grid;

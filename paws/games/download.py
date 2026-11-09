@@ -117,7 +117,7 @@ def build_reads(key: str) -> bool:
 def drop_private_sections(config_path=None) -> list[str]:
     """public build: the private-only sections do nothing there, so they go. their keys are kept first (paws' own
     store, and steam's config.vdf where they actually work). a section a live plugin reads stays: that's the
-    download plugin's data, and taking it out is the headcrab bug ASSella's lobster.lua exists to undo.
+    download plugin's data, and an installer that takes it out breaks every download.
     returns the sections removed"""
     from .. import config
     from ..util import backup

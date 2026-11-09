@@ -209,32 +209,43 @@ def _find_libs(root: Path) -> tuple[list[Path], Path]:
 
 
 def client_bits() -> set[int]:
-    """32 and/or 64: the steamclient.so builds a steam process here loads, and so the ones SLSsteam can hook.
-    linux64/steamclient.so is the one games use, not the client, so it doesn't count"""
+    """the word size of the steam client that starts here (32, or 64 when steam is set to its steamrt64 client), so
+    the one SLSsteam can hook. linux64/steamclient.so is the one games use, not the client, so it doesn't count"""
+    from ..steam import tinker
     from ..steam.find import find_steam
-    from ..util import elf
 
     try:
         steam = find_steam()
     except (ImportError, OSError):
         return set()
-    if not steam or not steam.root:
+    if not steam or not steam.root or steam.kind == "windows":
         return set()
-    found = {elf.bits(Path(steam.root) / d / "steamclient.so") for d in ("ubuntu12_32", "ubuntu12_64")}
-    return {b for b in found if b}
+    return {tinker.active_bits(Path(steam.root))} if tinker.active_client(Path(steam.root)) else set()
 
 
 def bits_problem(library) -> str | None:
-    """why steam can't load this SLSsteam library, when its word size matches no steam client here"""
+    """why steam can't load this SLSsteam library, when its word size isn't the steam client's"""
+    from ..steam import tinker
+    from ..steam.find import find_steam
     from ..util import elf
 
     have, want = elf.bits(library), client_bits()
     if not have or not want or have in want:
         return None
     other = "/".join(str(b) for b in sorted(want))
+    try:
+        steam = find_steam()
+    except (ImportError, OSError):
+        steam = None
+    if have == 64 and steam and steam.root and tinker.can_64(Path(steam.root)):
+        fix = "switch steam to its 64-bit client in Steam Tinker (paws steam arch 64) and install it again"
+    elif have == 32:
+        fix = "switch steam back to its 32-bit client in Steam Tinker (paws steam arch 32) and install it again"
+    else:
+        fix = f"ask whoever made it for the {other}-bit build"
     return (
         f"it's a {have}-bit build and your steam client is {other}-bit, so steam can't load it (ld.so says "
-        f"'wrong ELF class' and starts steam without it). ask whoever made it for the {other}-bit build"
+        f"'wrong ELF class' and starts steam without it). {fix}"
     )
 
 

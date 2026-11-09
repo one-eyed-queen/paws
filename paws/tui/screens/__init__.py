@@ -13,6 +13,7 @@ _SCREENS = {
     "SectionsScreen": "sections",
     "SettingsScreen": "settings",
     "SlsScreen": "sls",
+    "TinkerScreen": "tinker",
 }
 
 __all__ = sorted(_SCREENS)

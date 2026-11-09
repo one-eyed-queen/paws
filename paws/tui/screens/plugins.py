@@ -223,10 +223,10 @@ class PluginsScreen(Screen):
             return
         self.app.push_screen(
             Confirm(
-                f"Get SLSsteam's download plugin ({plugins.DOWNLOAD}, sha256 {plugins.DOWNLOAD_SHA256[:12]}…)?\n"
+                f"Add SLSsteam's download plugin ({plugins.DOWNLOAD}, sha256 {plugins.DOWNLOAD_SHA256[:12]}…)?\n"
                 "it's what lets the public build download games with their real size: it runs inside steam, puts "
                 "your games' depots and keys in, and asks gmrc.wudrm.com for the manifest codes valve refuses.\n"
-                "fetched from enter-the-wired's github release. DisableUpdates goes off (it makes steam show 0 B). "
+                "paws ships it (credits in the readme). DisableUpdates goes off (it makes steam show 0 B). "
                 "it loads the next time steam starts",
                 "Download plugin",
             ),
