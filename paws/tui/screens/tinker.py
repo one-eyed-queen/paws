@@ -16,7 +16,17 @@ GOOD, BAD, WARN, DIM = "#3ddc97", "#ff5c7a", "#ffd75f", "#9db0e0"
 class TinkerScreen(Screen):
     DEFAULT_CLASSES = "page"
 
-    BINDINGS = [("escape", "pop", "back"), ("backspace", "pop", "back"), ("r", "reload", "refresh")]
+    BINDINGS = [
+        ("escape", "pop", "back"),
+        ("backspace", "pop", "back"),
+        ("r", "reload", "refresh"),
+        ("left", "move(-1, 0)", "left"),
+        ("right", "move(1, 0)", "right"),
+        ("up", "move(0, -1)", "up"),
+        ("down", "move(0, 1)", "down"),
+    ]
+    GRID = ("b-arch", "b-channel", "b-hold", "b-rollback", "b-upgrade", "b-back")
+    COLS = 3
 
     def compose(self) -> ComposeResult:
         yield AppHeader("Steam Tinker", id="hdr")
@@ -34,6 +44,17 @@ class TinkerScreen(Screen):
         self.state = None
         self.reload()
         self.query_one("#b-arch", Button).focus()
+
+    def action_move(self, dx: int, dy: int):
+        current = getattr(self.focused, "id", None)
+        if current not in self.GRID:
+            self.query_one(f"#{self.GRID[0]}", Button).focus()
+            return
+        i = self.GRID.index(current)
+        rows = (len(self.GRID) + self.COLS - 1) // self.COLS
+        row, col = divmod(i, self.COLS)
+        row, col = (row + dy) % rows, (col + dx) % self.COLS
+        self.query_one(f"#{self.GRID[min(row * self.COLS + col, len(self.GRID) - 1)]}", Button).focus()
 
     def set_out(self, text: str):
         self.query_one("#tink-out", Static).update(text)
