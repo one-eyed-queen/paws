@@ -36,7 +36,7 @@ def _status(args) -> int:
     print(f"channel    {s.channel_label}")
     print(f"updates    {'held' if s.held else 'on'}")
     if s.sls_bits:
-        fits = "fits" if s.sls_fits else f"doesn't fit, `paws steam arch {s.sls_bits}` or a {s.bits}-bit build"
+        fits = "fits" if s.sls_fits else "doesn't fit, SLSsteam requires 64-bit steam (paws switches it automatically on install)"
         print(f"SLSsteam   {s.sls_bits}-bit, {fits}")
     if s.forced:
         print(f"note       STEAM_FORCE_CLIENT={s.forced} is set and decides the bitness")
@@ -69,6 +69,8 @@ def run(args) -> int:
     action = getattr(args, "steam_command", None)
     try:
         if action == "arch":
+            if args.bits == 32:
+                print("warning: SLSsteam requires the 64-bit client, setting 32-bit will break it", file=sys.stderr)
             print(tinker.set_bits(None, args.bits))
         elif action == "channel":
             print(tinker.set_channel(None, args.branch))

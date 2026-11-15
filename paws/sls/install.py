@@ -237,8 +237,10 @@ def bits_problem(library) -> str | None:
         steam = find_steam()
     except (ImportError, OSError):
         steam = None
-    if have == 64 and steam and steam.root and tinker.can_64(Path(steam.root)):
-        fix = "switch steam to its 64-bit client in Steam Tinker (paws steam arch 64) and install it again"
+    if have == 64 and steam and steam.root and tinker.ensure_64(Path(steam.root)):
+        return None
+    elif have == 64 and steam and steam.root and not tinker.can_64(Path(steam.root)):
+        fix = "this steam has no 64-bit client yet (steamrt64/steam is missing): update steam first"
     elif have == 32:
         fix = "switch steam back to its 32-bit client in Steam Tinker (paws steam arch 32) and install it again"
     else:
@@ -283,7 +285,8 @@ def _install_staged(
         )
     if not any(p.name.lower() in main_names for p in usable):
         raise SlsError(f"{archive.name} has helpers but no SLSsteam library ({', '.join(p.name for p in usable)})")
-    wrong = bits_problem(next(p for p in usable if p.name.lower() in main_names))
+    main_lib = next(p for p in usable if p.name.lower() in main_names)
+    wrong = bits_problem(main_lib)
     if wrong:
         raise SlsError(f"{archive.name}: {wrong}. nothing was changed")
 

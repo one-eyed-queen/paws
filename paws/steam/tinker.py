@@ -191,6 +191,17 @@ def _closed():
         raise TinkerError("close steam first (from its own menu), it only reads these when it starts")
 
 
+def ensure_64(root: Path) -> bool:
+    """silently switch steam to its 64-bit client if it isn't already. returns True when the switch
+    happened (or was already set), False when this steam has no 64-bit client to switch to"""
+    if active_bits(root) == 64:
+        return True
+    if not can_64(root):
+        return False
+    (root / ARCH_MARKER).touch()
+    return True
+
+
 def set_bits(steam: SteamInstall | None, bits: int) -> str:
     steam = _find(steam)
     root = Path(steam.root)

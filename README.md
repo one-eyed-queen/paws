@@ -6,7 +6,7 @@
 <p align="center">
   <img src="assets/image.png" alt="paws app preview" width="800" align="middle">
 </p>
-<p align="center"><b>v4.5.127</b> - public release version numbers: the last number (X.Y.<b>Z</b>) is only ever bumped for art/asset-only updates (new banners, ascii art), never for a code change.</p>
+<p align="center"><b>v4.6.127</b> - public release version numbers: the last number (X.Y.<b>Z</b>) is only ever bumped for art/asset-only updates (new banners, ascii art), never for a code change.</p>
 
 
 
@@ -282,7 +282,7 @@ every row gets the game's full name as a comment. `paws doctor` tells u which bu
 
 **steam deletes a game u downloaded some other way** (an outside depot downloader) at its next start when nothing gives it a license for the depots, so on the plain public build files u put there by hand don't stay. with the download plugin steam downloads and keeps them itself.
 
-**a 64-bit SLSsteam won't load into steam.** the steam client is 32-bit, so a build made for 64-bit gets "wrong ELF class" from the loader and steam starts without it (then it removes the games u don't own). paws refuses to install one and `paws doctor` flags one that's already there.
+**SLSsteam is 64-bit only now.** paws automatically switches steam to its 64-bit client (`steamrt64`) when installing SLSsteam, so u don't have to do it by hand. if steam has no 64-bit client yet (steamrt64/steam is missing), update steam first. `paws doctor` checks and fixes this too.
 
 **Install / Update never swap a private build for the public one by themselves.** github only has the public build, so Update leaves a private one alone and Install asks first. to update a private build, drop its newer .7z on paws.
 
@@ -303,7 +303,7 @@ the builds that can't run on your system stay visible but greyed out with the re
 
 **Update** and **Uninstall** work the same way, and both say plainly when they did nothing and why, instead of reporting a job that quietly changed nothing.
 
-**32 or 64 bit has to match.** steam on linux has two clients now: the old 32-bit one (`ubuntu12_32`, what starts by default) and valve's 64-bit one (`steamrt64`). an SLSsteam build only loads into the client of its own bitness, so a `x86_64` or `AArch64` build gets refused while steam runs 32-bit (and AArch64 is arm, it never runs on a normal pc). to use an x86_64 build, switch the client first: **Steam Tinker > 32 / 64 bit** or `paws steam arch 64`, then install it. `paws steam` shows both sides.
+**SLSsteam requires the 64-bit steam client.** steam on linux has two clients: the old 32-bit one (`ubuntu12_32`) and valve's 64-bit one (`steamrt64`). SLSsteam builds are 64-bit only now, so paws automatically switches steam to the 64-bit client when installing SLSsteam. if ur steam has no 64-bit client yet (steamrt64/steam is missing), update steam first. `paws steam` shows which client is active.
 
 ### steam tinker
 

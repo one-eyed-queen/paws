@@ -119,16 +119,16 @@ class TinkerScreen(Screen):
         self.app.push_screen(
             ModalPick(
                 "Which steam client starts",
-                "the 64-bit one is valve's newer client. SLSsteam must match: a 32-bit build only loads into the "
-                "32-bit client and a 64-bit build only into the 64-bit one",
+                "SLSsteam requires the 64-bit client. paws switches steam to it automatically during install, "
+                "but you can set it here too",
                 [
                     (
                         ("● " if s.bits == 32 else "") + "32-bit",
                         "32",
-                        None,
-                        "ubuntu12_32/steam, what most SLSsteam builds hook",
+                        "SLSsteam no longer supports 32-bit",
+                        "ubuntu12_32/steam, no longer supported by SLSsteam",
                     ),
-                    (("● " if s.bits == 64 else "") + "64-bit", "64", no64, "steamrt64/steam, needs a 64-bit SLSsteam"),
+                    (("● " if s.bits == 64 else "") + "64-bit", "64", no64, "steamrt64/steam, required by current SLSsteam"),
                 ],
             ),
             self._arch_picked,

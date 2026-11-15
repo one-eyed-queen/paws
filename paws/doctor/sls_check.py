@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 from .. import sls as sls_module
 from ..util import pkgmgr
@@ -123,10 +124,24 @@ def sls_checks(sls) -> list:
         )
     ]
     from ..sls.install import bits_problem
+    from ..steam import tinker
+    from ..util import elf
 
+    was_32 = False
+    if sls.sls_so and elf.bits(sls.sls_so) == 64:
+        try:
+            from ..steam.find import find_steam
+
+            steam = find_steam()
+            if steam and steam.root and tinker.active_bits(Path(steam.root)) != 64:
+                was_32 = True
+        except (ImportError, OSError):
+            pass
     wrong = bits_problem(sls.sls_so) if sls.sls_so else None
     if wrong:
         out.append(CheckResult(False, "SLSsteam can't load", f"{sls.sls_so}: {wrong}", "error"))
+    elif was_32:
+        out.append(CheckResult(True, "Steam switched to 64-bit", "SLSsteam requires the 64-bit client, paws set it automatically", "ok"))
     out += _plugin_checks()
     if headcrab:
         out.append(CheckResult(True, "HeadCrab found", f"{len(headcrab)} thing(s) of it on this machine (it's an SLSsteam build)", "info"))
