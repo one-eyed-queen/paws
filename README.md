@@ -443,14 +443,12 @@ and the projects paws uses or learned from:
 - [h3adcr-b (HeadCrab)](https://github.com/Deadboy666/h3adcr-b) and [h3adcr-b-modul3s](https://github.com/Deadboy666/h3adcr-b-modul3s) by Deadboy666 — the installer paws can run, and how it wires LD_AUDIT
 - [psyche](https://github.com/ciscosweater/psyche) by ciscosweater — showed `setdepotkey()` is a real lua convention
 - [Hollow-Steam](https://forgejo.servergamer.win/Parasitic_Hollow/Hollow-Steam) — an SLSsteam build paws can install from forgejo
-- slsconfigurator by petar / xamionex, hollow-decky, SLSConfig-Decky, [TOST](https://github.com/sadabx/TOST) by sadabx and the tachilabs tools — front-ends for the same config that paws recognises
 - [CloudRedirect](https://github.com/Selectively11/CloudRedirect) by Selectively11 — cloud saves for unowned games, paws knows to leave it alone
 - the greasyfork [SteamDB App Parser](https://greasyfork.org/en/scripts/543010-steamdb-app-parser) script — its logic is how paws turns a game page into config rows
 - [SteamDB](https://steamdb.info) and [steamcmd.net](https://www.steamcmd.net) — game, depot and package info
 - [Nerd Fonts](https://www.nerdfonts.com) — the menu icons
 - the [Internet Archive's Wayback Machine](https://web.archive.org) — its saved copies of valve's steam client release lists are what steam tinker's roll back installs from
 - valve's own `steam.sh` and updater — the 64-bit client switch, `package/beta`, `BootStrapperInhibitAll` and `-overridepackageurl` are all theirs, paws just flips them
-- [LuaToolsLinux](https://github.com/Star123451/LuaToolsLinux) by StarWarsK & geovanygrdt, [luatools-moon / slsteam-moon](https://github.com/swwayps/luatools-moon) by swwayps and [SteaMidra](https://github.com/Midrags/SFF) by Midrags — read while fixing 0 B: a "purchase error" means steam started without SLSsteam, and files dropped in by hand don't stay
 
 <p align="center">
   <img src="assets/moan.png" alt="" width="300">
