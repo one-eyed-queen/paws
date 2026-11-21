@@ -41,21 +41,31 @@ def check_download_plugin() -> list[Problem]:
     missing = plugins.missing_patterns(plugin)
     if missing:
 
-        def park() -> str:
+        def reinstall() -> str:
             why = _closed_first()
             if why:
                 return why + ". nothing changed"
-            parked = plugins.disable(plugin.stem)
-            return f"moved it to {parked.path.parent.name}. turn it back on in Plugins once there's an update"
+            selected = plugins.selected_download(refresh=True)
+            if selected is None:
+                parked = plugins.disable(plugin.stem)
+                return f"no matching plugin available; moved it to {parked.path.parent.name} until there's an update"
+            entry, how = selected
+            result = plugins.install_download(entry=entry)
+            version = entry.get("version") or entry["file"]
+            return (
+                f"installed {version} ({how} match for this steam / SLSsteam version): {result['path']}. "
+                "restart steam through paws to load it"
+            )
 
         out.append(
             Problem(
                 "plugins.download-outdated",
                 f"{plugin.name} doesn't fit this steam client",
-                f"{len(missing)} of its byte patterns aren't in steamclient.so any more (steam updated), so it can't "
-                "hook what it needs and downloads fail. a plugin hooking the wrong spot can take steam down with it",
-                "set it aside until there's an update for this steam version",
-                park,
+                f"{len(missing)} of its byte patterns aren't in steamclient.so any more (steam updated, or a 32-bit "
+                "plugin is on the 64-bit client), so it can't hook what it needs and downloads fail. a plugin "
+                "hooking the wrong spot can take steam down with it",
+                "fetch the plugin for this steam / SLSsteam version from the repo and replace it",
+                reinstall,
                 "error",
             )
         )

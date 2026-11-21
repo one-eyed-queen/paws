@@ -52,6 +52,14 @@ def _download(args) -> int:
     else:
         result = plugins.install_download()
         text = f"installed {result['path']}"
+        if result.get("source") == "remote":
+            text += (
+                f"\nplugin {result.get('plugin_version') or '?'} from the paws-plugins repo "
+                f"(steam {result.get('steam_arch')}-bit build {result.get('steam_build')}, "
+                f"SLS {result.get('sls_version')})"
+            )
+        else:
+            text += "\nbundled 32-bit plugin (no version match available, offline fallback)"
         if result["plugins_turned_on"]:
             text += "\nPlugins was off, it's on now"
         if result["updates_turned_on"]:

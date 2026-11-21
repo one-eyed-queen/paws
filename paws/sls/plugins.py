@@ -232,20 +232,11 @@ def export_plugin(name: str, dest_dir: Path) -> Path:
 # unlicensed game's files at its next start
 
 DOWNLOAD = "download.lua"
-# paws ships this exact file (data/plugins, license next to it) and installs no other: a plugin runs any code it likes
-# inside steam. the urls are only for an install that lost its copy
+# paws ships one 32-bit copy for offline installs; the version-aware variants live in the paws-plugins repo and
+# are picked by plugin_manifest. DOWNLOAD_SHA256 stays as the hash of that bundled copy (also the name older
+# callers/tests use), not as the hash of every plugin paws will install.
 DOWNLOAD_SHA256 = "8e822aecfea085cfcada45b9ed0e8f2c09bc04b76c667cc1904342c9197be627"
 BUNDLED = Path(__file__).resolve().parent.parent / "data" / "plugins" / DOWNLOAD
-DOWNLOAD_SOURCES = (
-    ("https://github.com/ciscosweater/enter-the-wired/releases/download/latest/plugins-deps.zip", DOWNLOAD),
-    (
-        (
-            "https://raw.githubusercontent.com/niwia/ASSella/f7a9fd754610953fa842e346e6fce04185ff32ba/"
-            "src/res/plugins/download.lua"
-        ),
-        None,
-    ),
-)
 DOWNLOAD_KEYS = frozenset({"AdditionalDepots", "DecryptionKeys"})
 
 _READS = re.compile(r'SLS\.config:get\w*\(\s*"(\w+)"')
@@ -342,7 +333,7 @@ def missing_patterns(path: Path) -> list[str] | None:
 
 
 def bundled_download() -> bytes | None:
-    """paws' own copy, when it's there and still the checked file"""
+    """paws' own 32-bit copy, when it's there and still the checked file"""
     import hashlib
 
     try:
@@ -352,31 +343,51 @@ def bundled_download() -> bytes | None:
     return data if hashlib.sha256(data).hexdigest() == DOWNLOAD_SHA256 else None
 
 
-def fetch_download() -> bytes:
-    """the shipped copy, or the same file from the web when this install lost it"""
+def selected_download(refresh: bool = False) -> tuple[dict, str] | None:
+    """the plugin entry for this steam build / SLS version, or None when the manifest can't be read"""
+    from . import plugin_manifest as pm
+
+    try:
+        return pm.select(pm.load_manifest(refresh=refresh), pm.current_key())
+    except (SlsError, OSError, ValueError):
+        return None
+
+
+def fetch_download(entry: dict | None = None) -> bytes:
+    """the plugin for this client from the repo; the bundled 32-bit copy only when there's no selection to be made"""
+    from . import plugin_manifest as pm
+
+    if entry is None:
+        selected = selected_download()
+        if selected is not None:
+            entry = selected[0]
+        else:
+            from .plugin_manifest import current_key
+
+            if current_key()["steam_arch"] == 64:
+                raise SlsError(
+                    "the 64-bit Steam client needs the x64 download plugin, but there's no entry for this "
+                    "Steam / SLSsteam version (or the plugin repo couldn't be reached). connect, try again, "
+                    "and check paws-plugins for an update"
+                )
+            shipped = bundled_download()
+            if shipped is None:
+                raise SlsError("couldn't find a download plugin for this steam / SLSsteam version")
+            return shipped
+    return pm.fetch(entry)
+
+
+def installed_matches(entry: dict) -> bool:
+    """whether the live downloader is the selected plugin"""
     import hashlib
-    import io
 
-    from ..util import http
-
-    shipped = bundled_download()
-    if shipped is not None:
-        return shipped
-    tried = []
-    for url, member in DOWNLOAD_SOURCES:
-        try:
-            data = http.get(url, timeout=30)
-            if member:
-                with zipfile.ZipFile(io.BytesIO(data)) as archive:
-                    data = archive.read(member)
-        except Exception as error:
-            tried.append(f"{url}: {error}")
-            continue
-        digest = hashlib.sha256(data).hexdigest()
-        if digest == DOWNLOAD_SHA256:
-            return data
-        tried.append(f"{url}: a different download.lua (sha256 {digest[:12]}), not the one paws checked")
-    raise SlsError("couldn't get download.lua. " + "; ".join(tried))
+    path = downloader()
+    if path is None:
+        return False
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest() == entry["sha256"]
+    except OSError:
+        return False
 
 
 def _steam_closed():
@@ -389,7 +400,7 @@ def _steam_closed():
         )
 
 
-def install_download(data: bytes | None = None) -> dict:
+def install_download(data: bytes | None = None, entry: dict | None = None) -> dict:
     """download.lua in, Plugins on, DisableUpdates off and the two sections it reads in the config.
 
     SLSsteam runs plugins at steam's start and on a .lua change, never on a config change (lua.cpp, config.cpp). so
@@ -411,8 +422,32 @@ def install_download(data: bytes | None = None) -> dict:
     other = downloader()
     if other is not None and other.name != DOWNLOAD:
         raise SlsError(f"{other.name} already does downloads: two of them would hook the same functions")
-    data = data if data is not None else fetch_download()
-    if hashlib.sha256(data).hexdigest() != DOWNLOAD_SHA256:
+    if entry is None and data is None:
+        # the manifest knows which plugin fits this steam build and SLS version. try it first: the bundled copy is
+        # 32-bit only and would silently fail on the steamrt64 client. it's the offline fallback, not the default.
+        selected = selected_download()
+        if selected is not None:
+            entry, _ = selected
+            expected = entry["sha256"]
+        else:
+            from .plugin_manifest import current_key
+
+            if current_key()["steam_arch"] == 64:
+                raise SlsError(
+                    "the 64-bit Steam client needs the x64 download plugin, but there's no entry for this "
+                    "Steam / SLSsteam version (or the plugin repo couldn't be reached). connect, try again, "
+                    "and check paws-plugins for an update"
+                )
+            shipped = bundled_download()
+            if shipped is None:
+                raise SlsError("couldn't find a download plugin for this steam / SLSsteam version")
+            data, expected = shipped, DOWNLOAD_SHA256
+    elif entry is not None:
+        expected = entry["sha256"]
+    else:
+        expected = DOWNLOAD_SHA256
+    data = data if data is not None else fetch_download(entry)
+    if hashlib.sha256(data).hexdigest() != expected:
         raise SlsError("that isn't the download.lua paws checked, so it wasn't installed")
     folder = plugins_dir()
     folder.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -433,7 +468,7 @@ def install_download(data: bytes | None = None) -> dict:
         if updates_were_off:
             config.set_scalar("DisableUpdates", "no")
         added = config.fill_missing(only=DOWNLOAD_KEYS)
-    return {
+    result = {
         "ok": True,
         "path": str(target),
         "plugins_turned_on": not was_on,
@@ -441,6 +476,17 @@ def install_download(data: bytes | None = None) -> dict:
         "sections_added": added,
         "restart_steam": running,
     }
+    if entry is not None:
+        result.update(
+            plugin_version=entry.get("version", ""),
+            steam_arch=entry.get("steam_arch"),
+            steam_build=entry.get("steam_build"),
+            sls_version=entry.get("sls_version"),
+            source="remote",
+        )
+    else:
+        result["source"] = "bundled"
+    return result
 
 
 def remove_download() -> dict:

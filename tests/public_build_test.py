@@ -179,7 +179,9 @@ outdated = check_download_plugin()
 check("steam update: plugin flagged", [p.id for p in outdated], ["plugins.download-outdated"])
 with mock.patch("paws.steam.is_running", lambda: True):
     check("steam update: not set aside under a running steam", "close steam" in outdated[0].fix())
-with mock.patch("paws.steam.is_running", lambda: False):
+with mock.patch("paws.steam.is_running", lambda: False), mock.patch.object(
+    plugins, "selected_download", lambda refresh=False: None
+):
     outdated[0].fix()
 check("steam update: set aside", installed.exists(), False)
 check("steam update: kept in plugins-disabled", (plugins.disabled_dir() / "download.lua").exists())

@@ -34,7 +34,8 @@ def _plugin_checks() -> list:
             CheckResult(
                 False,
                 "Download plugin outdated",
-                f"{plugin.name}: {len(missing)} of its patterns aren't in this steam client, it can't hook it",
+                f"{plugin.name}: {len(missing)} of its patterns aren't in this steam client, it can't hook it. "
+                "paws can fetch the matching version via `paws fix` or `paws plugins download`",
                 "error",
             )
         ]

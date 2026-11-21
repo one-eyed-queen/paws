@@ -223,11 +223,12 @@ class PluginsScreen(Screen):
             return
         self.app.push_screen(
             Confirm(
-                f"Add SLSsteam's download plugin ({plugins.DOWNLOAD}, sha256 {plugins.DOWNLOAD_SHA256[:12]}…)?\n"
-                "it's what lets the public build download games with their real size: it runs inside steam, puts "
-                "your games' depots and keys in, and asks gmrc.wudrm.com for the manifest codes valve refuses.\n"
-                "paws ships it (credits in the readme). DisableUpdates goes off (it makes steam show 0 B). "
-                "it loads the next time steam starts",
+                f"Add SLSsteam's download plugin ({plugins.DOWNLOAD})?\n"
+                "paws picks the build matching this steam client and SLSsteam version from the paws-plugins repo "
+                "(the bundled 32-bit copy is only the offline fallback). it's what lets the public build download "
+                "games with their real size: it runs inside steam, puts your games' depots and keys in, and asks "
+                "gmrc.wudrm.com for the manifest codes valve refuses.\n"
+                "DisableUpdates goes off (it makes steam show 0 B). it loads the next time steam starts",
                 "Download plugin",
             ),
             lambda yes: yes and self._download_job(plugins.install_download),
@@ -242,7 +243,8 @@ class PluginsScreen(Screen):
             return
         if result.get("path"):
             when = "restart steam" if result.get("restart_steam") else "start steam"
-            self.refresh_list(f"[#5ff0a0]installed {result['path']}[/]: {when} through paws to load it")
+            version = f" ({result['plugin_version']})" if result.get("plugin_version") else ""
+            self.refresh_list(f"[#5ff0a0]installed {result['path']}{version}[/]: {when} through paws to load it")
         else:
             self.refresh_list(f"set aside: {result['removed']}" if result.get("removed") else "it wasn't installed")
 
