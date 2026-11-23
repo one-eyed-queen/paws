@@ -6,7 +6,7 @@
 <p align="center">
   <img src="assets/image.png" alt="paws app preview" width="800" align="middle">
 </p>
-<p align="center"><b>v4.6.127</b> - public release version numbers: the last number (X.Y.<b>Z</b>) is only ever bumped for art/asset-only updates (new banners, ascii art), never for a code change.</p>
+<p align="center"><b>v4.7.127</b> - public release version numbers: the last number (X.Y.<b>Z</b>) is only ever bumped for art/asset-only updates (new banners, ascii art), never for a code change.</p>
 
 
 
