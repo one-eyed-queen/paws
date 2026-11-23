@@ -42,6 +42,15 @@ def add_parser(subparsers, common):
         help="add SLSsteam's download plugin, so the public build downloads games with their real size",
     )
     download.add_argument("--remove", action="store_true", help="set it aside again (it goes to plugins-disabled)")
+
+    available = sp.add_parser(
+        "available", parents=[common], help="list the optional plugins published for this steam / SLSsteam build"
+    )
+    available.add_argument("--refresh", action="store_true", help="ignore the local manifest cache")
+
+    install = sp.add_parser("install", parents=[common], help="install one optional plugin from the public collection")
+    install.add_argument("name")
+    install.add_argument("--refresh", action="store_true", help="ignore the local manifest cache")
     return p
 
 
@@ -51,7 +60,9 @@ def _download(args) -> int:
         text = f"set aside: {result['removed']}" if result["removed"] else "the download plugin isn't installed"
     else:
         result = plugins.install_download()
+        arch = plugins.arch_report()
         text = f"installed {result['path']}"
+        text += f"\nsteam {arch['steam_arch'] or '?'}-bit / SLSsteam {arch['sls_arch'] or '?'}-bit detected"
         if result.get("source") == "remote":
             text += (
                 f"\nplugin {result.get('plugin_version') or '?'} from the public plugin collection "
@@ -70,6 +81,29 @@ def _download(args) -> int:
             text += "\nsteam is running: restart it (through paws or the SLSsteam launcher) to load the plugin"
         else:
             text += "\nstart steam through paws (or the SLSsteam launcher) to load it"
+    print(json.dumps(result) if args.json else text)
+    return 0
+
+
+def _available(args) -> int:
+    found = plugins.collection_plugins(refresh=args.refresh)
+    if args.json:
+        print(json.dumps(found))
+        return 0
+    if not found:
+        print("the public plugin collection has no optional plugins listed yet")
+        return 0
+    for entry in found:
+        state = "installed" if entry["installed"] else "available"
+        arch = entry.get("steam_arch") or "?"
+        print(f"{entry['name']:14} {state:9} {arch}-bit  {entry.get('version', ''):20} {entry.get('desc', '')}")
+    print("install one with: paws plugins install <name>")
+    return 0
+
+
+def _install(args) -> int:
+    result = plugins.install_collection(args.name, refresh=args.refresh)
+    text = f"installed {result['name']} {result['version']} -> {result['path']}"
     print(json.dumps(result) if args.json else text)
     return 0
 
@@ -123,6 +157,10 @@ def run(args) -> int:
             print("Plugins:", "on" if plugins.master_on() else "off")
         elif action == "download":
             return _download(args)
+        elif action == "available":
+            return _available(args)
+        elif action == "install":
+            return _install(args)
         else:
             return _list(args)
     except SlsError as error:

@@ -97,6 +97,33 @@ def is_ticket_file(p: Path) -> bool:
     return bool(TICKET_NAME.match(p.name))
 
 
+def _plugin_zip_lua(p: Path) -> bytes | None:
+    """the single .lua in a shared plugin export, or None when this isn't one"""
+    try:
+        with zipfile.ZipFile(p) as archive:
+            luas = [n for n in archive.namelist() if n.lower().endswith(".lua") and not n.endswith("/")]
+            if len(luas) != 1:
+                return None
+            return archive.read(luas[0])
+    except (OSError, zipfile.BadZipFile):
+        return None
+
+
+def is_plugin_file(p: Path) -> bool:
+    """a SLSsteam plugin (including a .zip export), never a game's depot-key .lua"""
+    from .sls import plugins
+
+    try:
+        if p.suffix.lower() == ".lua":
+            return plugins.is_plugin_lua(p)
+        if p.suffix.lower() == ".zip":
+            data = _plugin_zip_lua(p)
+            return data is not None and plugins.is_plugin_bytes(data)
+    except OSError:
+        pass
+    return False
+
+
 def _token_to_path(tok):
     if tok.startswith("file://"):  # file managers hand over percent encoded uris
         tok = unquote(urlparse(tok).path)
@@ -215,7 +242,7 @@ def dropped_files(text: str) -> list[Path] | None:
             # .zip/.7z/.tar.* all carry bundles in the wild - read the contents rather than
             # trusting the extension, or a .pkg.tar.zst would look like an accepted drop and
             # then quietly do nothing
-            if is_archive(p) and _is_game_bundle(p):
+            if is_archive(p) and (_is_game_bundle(p) or is_plugin_file(p)):
                 continue
             return None
         except OSError:
@@ -239,7 +266,31 @@ class DropResult:
 def import_any(paths: list[Path]) -> DropResult:
     if paths and all(is_ticket_file(p) for p in paths):
         return import_tickets(paths)
+    if paths:
+        looks_like_plugin = [is_plugin_file(p) for p in paths]
+        if all(looks_like_plugin):
+            return import_plugins(paths)
+        if any(looks_like_plugin):
+            return DropResult(False, "mixed drop", ["a plugin .lua and game data can't be added in one drop"])
     return import_files(paths)
+
+
+def import_plugins(paths: list[Path]) -> DropResult:
+    """plugin-style .lua (a dropped download.lua included) goes to SLSsteam's plugins, not the game config"""
+    from .sls import SlsError, plugins
+
+    saved = []
+    problems = []
+    for p in paths:
+        try:
+            got = plugins.import_plugin(p, enabled=True)
+            saved.append(got.name)
+        except (SlsError, OSError, ValueError) as error:
+            problems.append(f"{p.name}: {error}")
+    if not saved:
+        return DropResult(False, "no plugin installed", problems or ["nothing there looked like a plugin"])
+    lines = [", ".join(saved), "SLSsteam loads them the next time steam starts", *problems]
+    return DropResult(not problems, f"installed {', '.join(saved)}", lines)
 
 
 def import_tickets(paths: list[Path]) -> DropResult:

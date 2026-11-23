@@ -10,7 +10,7 @@ from ... import editor
 from ...paths import HOME
 from ...sls import SlsError, plugins
 from ..widgets.header import AppHeader
-from ..widgets.modals import Confirm, ModalInput
+from ..widgets.modals import Confirm, ModalInput, ModalPick
 
 
 class PluginsScreen(Screen):
@@ -32,6 +32,7 @@ class PluginsScreen(Screen):
             yield Button("Remove", variant="error", id="b-remove")
             yield Button("Master switch", id="b-master")
             yield Button("Download plugin", id="b-download")
+            yield Button("From collection", id="b-collection")
             yield Button("Back", id="b-back")
 
     def on_mount(self):
@@ -247,6 +248,44 @@ class PluginsScreen(Screen):
             self.refresh_list(f"[#5ff0a0]installed {result['path']}{version}[/]: {when} through paws to load it")
         else:
             self.refresh_list(f"set aside: {result['removed']}" if result.get("removed") else "it wasn't installed")
+
+    @on(Button.Pressed, "#b-collection")
+    def _collection(self):
+        self.app.run_job("plugin list", lambda progress: plugins.collection_plugins(), self._collection_list)
+
+    def _collection_list(self, entries):
+        if isinstance(entries, Exception):
+            self.set_out(f"[#ff7a8a]{entries}[/]")
+            return
+        if not entries:
+            self.set_out("[#ffd75f]the public plugin collection has no optional plugins listed[/]")
+            return
+        arch = plugins.arch_report()
+        options = []
+        for entry in entries:
+            state = "installed" if entry["installed"] else "available"
+            options.append(
+                (entry["name"], entry["name"], "", f"{state} · {entry.get('desc') or entry.get('version', '')}")
+            )
+        self.app.push_screen(
+            ModalPick(
+                "Plugins from the collection",
+                f"steam {arch['steam_arch'] or '?'}-bit / SLSsteam {arch['sls_arch'] or '?'}-bit: picks the matching build",
+                options,
+            ),
+            self._collection_pick,
+        )
+
+    def _collection_pick(self, name):
+        if not name:
+            return
+        self.app.run_job("plugin install", lambda progress: plugins.install_collection(name), self._collection_done)
+
+    def _collection_done(self, result):
+        if isinstance(result, Exception):
+            self.refresh_list(f"[#ff7a8a]{result}[/]")
+            return
+        self.refresh_list(f"[#5ff0a0]installed {result['name']} {result['version']}[/]: {result['path']}")
 
     @on(Button.Pressed, "#b-back")
     def _back(self):

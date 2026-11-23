@@ -171,6 +171,31 @@ def _looks_like_a_manifest_lua(path: Path) -> bool:
     return bool(manifest.app_ids or manifest.app_tokens or manifest.manifest_ids or manifest.decryption_keys)
 
 
+_GAME_CALLS = re.compile(r"\b(?:addappid|addtoken|addapptoken|setmanifestid|setdepotkey|adddlc|adddlcname)\s*\(")
+_PLUGIN_CALLS = re.compile(
+    r"\b(?:SLS\.|LuaHook|LuaMutex|memhlp|patternScan|CConfig|registerCallback|curl\.|log\.|ffi\.)"
+)
+
+
+def _is_downloader_text(text: str) -> bool:
+    return DOWNLOAD_KEYS <= frozenset(_READS.findall(text)) and "GetManifestRequestCode" in text
+
+
+def is_plugin_bytes(data: bytes) -> bool:
+    """a SLSsteam lua plugin, not one of the depot-key scripts a game bundle carries"""
+    text = data.decode(errors="replace")
+    if _GAME_CALLS.search(text):
+        return False
+    return bool(_PLUGIN_CALLS.search(text)) or _is_downloader_text(text)
+
+
+def is_plugin_lua(path: Path) -> bool:
+    try:
+        return is_plugin_bytes(Path(path).read_bytes())
+    except OSError:
+        return False
+
+
 def _unique_path(folder: Path, stem: str) -> Path:
     candidate = folder / f"{stem}.lua"
     n = 1
@@ -200,6 +225,10 @@ def import_plugin(source: Path, enabled: bool = False) -> Plugin:
     if len(data) > MAX_ZIP_BYTES:
         raise SlsError("that's way bigger than a plugin should be")
     text = data.decode(errors="replace")
+    if _is_downloader_text(text):
+        installed = install_download(data=data, dropped=True)
+        target = Path(installed["path"])
+        return Plugin(target.stem, target, True, read_meta(target))
     folder = plugins_dir() if enabled else disabled_dir()
     folder.mkdir(parents=True, exist_ok=True)
     target = _unique_path(folder, stem)
@@ -400,7 +429,105 @@ def _steam_closed():
         )
 
 
-def install_download(data: bytes | None = None, entry: dict | None = None) -> dict:
+def arch_report() -> dict:
+    """both word sizes that matter: the steam client and the SLSsteam library injected into it"""
+    from . import plugin_manifest as pm
+
+    key = pm.current_key()
+    steam, sls = key.get("steam_arch"), key.get("sls_arch")
+    problem = None
+    if steam and sls and steam != sls:
+        problem = (
+            f"steam is running its {steam}-bit client but SLSsteam is {sls}-bit, so neither plugin can hook it. "
+            "install the matching SLSsteam build first (`paws steam arch 64` switches a 64-bit client on)"
+        )
+    return {
+        "steam_arch": steam,
+        "sls_arch": sls,
+        "steam_build": key.get("steam_build", ""),
+        "sls_version": key.get("sls_version", ""),
+        "compatible": problem is None,
+        "problem": problem,
+    }
+
+
+def _check_arch() -> None:
+    report = arch_report()
+    if not report["compatible"]:
+        raise SlsError(report["problem"])
+
+
+def collection_plugins(refresh: bool = False) -> list[dict]:
+    """the optional plugins in the public collection, marked with whether they're already installed"""
+    from . import plugin_manifest as pm
+
+    arch = pm.current_key().get("steam_arch")
+    out = []
+    for entry in pm.collection(pm.load_manifest(refresh=refresh)):
+        if arch and str(entry.get("steam_arch")) not in (str(arch), "*"):
+            continue
+        present = any(p.name == Path(entry["file"]).stem for p in list_plugins())
+        out.append({**entry, "steam_arch": entry.get("steam_arch", arch), "installed": present})
+    return out
+
+
+def _write_plugin(folder: Path, name: str, data: bytes) -> Path:
+    import os
+
+    folder.mkdir(mode=0o700, parents=True, exist_ok=True)
+    os.chmod(folder, 0o700)
+    target = folder / name
+    part = folder / (name + ".part")
+    part.write_bytes(data)
+    os.chmod(part, 0o600)
+    part.replace(target)
+    return target
+
+
+def install_collection(name: str, refresh: bool = False) -> dict:
+    """fetch one optional plugin from the public collection, hash-checked, into SLSsteam's live plugins folder"""
+    from . import plugin_manifest as pm
+
+    _check_arch()
+    arch = pm.current_key()["steam_arch"]
+    entry = pm.collection_entry(name, arch, pm.load_manifest(refresh=refresh))
+    if entry is None:
+        raise SlsError(f"{name} isn't in the public plugin collection for this {arch}-bit steam client")
+    if master_on():
+        _steam_closed()
+    data = pm.fetch(entry)
+    target = _write_plugin(plugins_dir(), entry["file"], data)
+    return {
+        "ok": True,
+        "name": entry["name"],
+        "path": str(target),
+        "version": entry.get("version", ""),
+        "steam_arch": entry.get("steam_arch"),
+        "sha256": entry["sha256"],
+        "source": "remote",
+    }
+
+
+def _missing_patterns_bytes(data: bytes) -> list[str] | None:
+    """the same byte-pattern check as missing_patterns(), for a file that isn't installed yet"""
+    from ..util import elf
+
+    client = steam_client()
+    patterns = tuple(_PATTERNS.findall(data.decode(errors="replace")))
+    if client is None or not patterns:
+        return None
+    try:
+        stamp = (str(client), client.stat().st_mtime_ns)
+        if stamp not in _CODE:
+            _CODE.clear()
+            _CODE[stamp] = elf.code(client)
+    except OSError:
+        return None
+    code = _CODE[stamp]
+    return [pattern for pattern in patterns if not elf.matches(pattern, code)] if code else None
+
+
+def install_download(data: bytes | None = None, entry: dict | None = None, dropped: bool = False) -> dict:
     """download.lua in, Plugins on, DisableUpdates off and the two sections it reads in the config.
 
     SLSsteam runs plugins at steam's start and on a .lua change, never on a config change (lua.cpp, config.cpp). so
@@ -416,6 +543,7 @@ def install_download(data: bytes | None = None, entry: dict | None = None) -> di
     from .. import config
     from ..steam import is_running
 
+    _check_arch()
     running = is_running()
     if running and master_on():
         _steam_closed()
@@ -442,13 +570,24 @@ def install_download(data: bytes | None = None, entry: dict | None = None) -> di
             if shipped is None:
                 raise SlsError("couldn't find a download plugin for this steam / SLSsteam version")
             data, expected = shipped, DOWNLOAD_SHA256
+    elif dropped and data is not None and entry is None:
+        from . import plugin_manifest as pm
+
+        entry = pm.entry_for_bytes(data, pm.current_key().get("steam_arch"))
+        expected = entry["sha256"] if entry is not None else None
     elif entry is not None:
         expected = entry["sha256"]
     else:
         expected = DOWNLOAD_SHA256
     data = data if data is not None else fetch_download(entry)
-    if hashlib.sha256(data).hexdigest() != expected:
+    if expected is not None and hashlib.sha256(data).hexdigest() != expected:
         raise SlsError("that isn't the download.lua paws checked, so it wasn't installed")
+    if expected is None:
+        missing = _missing_patterns_bytes(data)
+        if missing:
+            raise SlsError(
+                "that download.lua doesn't fit this steam client: " + ", ".join(missing) + " aren't in steamclient.so"
+            )
     folder = plugins_dir()
     folder.mkdir(mode=0o700, parents=True, exist_ok=True)
     os.chmod(folder, 0o700)  # SLSsteam won't load from a plugins folder others can write to
@@ -486,6 +625,9 @@ def install_download(data: bytes | None = None, entry: dict | None = None) -> di
         )
     else:
         result["source"] = "bundled"
+    if dropped:
+        result["source"] = "dropped"
+        result["sha256"] = hashlib.sha256(data).hexdigest()
     return result
 
 

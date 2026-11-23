@@ -274,6 +274,8 @@ paws does all of this for u when u add a game (drag and drop, add game, or the l
 
 with all that, **Install** shows the game's real size, the download shows its real size and progress, and there's no "no internet connection": steam downloads it like a game u own.
 
+the same collection also offers optional plugins (ticket handling, depot-key lookup, config guarding and a startup check). `paws plugins available` lists the ones for ur client, `paws plugins install <name>` adds one, and **Plugins > From collection** does it in the TUI. dropping a plugin `.lua` (including `download.lua`) anywhere on the window installs it too; a game's depot-key `.lua` is still handled as game data, not as a plugin. paws detects both the steam client and the installed SLSsteam word size before installing anything, so an x86 plugin never goes silently onto an x64 client.
+
 the plugin hooks steam by byte patterns, so a steam update can break it. `paws doctor` checks its patterns against ur `steamclient.so` and says when it doesn't fit any more.
 
 every row gets the game's full name as a comment. `paws doctor` tells u which build u have and why a game is at 0 B.
@@ -386,7 +388,10 @@ all of those take `--dry-run` to show what would change without changing it.
     paws sls install --source private --url LINK --name HeadCrab
                             a private build from a repo link or a .zip/.7z (sources: github, private, forgejo, local)
     paws plugins            new / import / export / enable / disable plugins, `master on|off` for all of them
-    paws plugins download   add SLSsteam's download plugin so the public build downloads (--remove sets it aside)
+    paws plugins available  optional plugins published for this steam / SLSsteam build (--refresh to recheck)
+    paws plugins install X  fetch one of them, sha256-checked, into SLSsteam's live plugins folder
+    paws plugins download   add the matching download plugin; paws detects steam + SLSsteam word size first
+                            (--remove sets it aside). dropping a plugin .lua on the window does the same thing
     paws steam              the steam client: version, 32/64 bit, channel, held or not, and if SLSsteam fits
     paws steam arch 64      start steam's 64-bit client (32 goes back). close steam first
     paws steam channel publicbeta   or stable, steamdeck_stable, steamdeck_publicbeta
