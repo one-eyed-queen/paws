@@ -117,7 +117,7 @@ cfg.write_text(
 check("no plugin: can't download", download.can_download(), False)
 told = check_public_build(cfg)
 check("no plugin: the 0 B notice names the plugin", bool(told) and "paws plugins download" in told[0].fix_note)
-check("no plugin: paws never adds it by itself", bool(told) and told[0].fix is None)
+check("no plugin: repair can add it by default", bool(told) and callable(told[0].fix))
 
 with mock.patch("paws.steam.is_running", lambda: True):  # Plugins is off: staged, loads at the next start
     try:

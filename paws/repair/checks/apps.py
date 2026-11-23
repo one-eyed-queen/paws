@@ -243,15 +243,28 @@ def check_public_build(config_path: Path) -> list[Problem]:
              if _code_part(l).strip() and not split_comment(l)[1].startswith(ACTIVATION_NOTE)]
     if not names:
         return []
+
+    def add_plugin() -> str:
+        from ...sls import plugins
+        from ...sls.errors import SlsError
+
+        try:
+            result = plugins.install_download()
+        except SlsError as error:
+            return f"couldn't add it: {error}"
+        version = result.get("plugin_version") or "the matching download.lua"
+        note = " restart steam through paws to load it." if result.get("restart_steam") else ""
+        return f"added {version} as {result['path']}.{note}"
+
     return [
         Problem(
             "sls.public-no-downloads",
             f"{len(names)} game(s) show in steam but can't download (0 B)",
             f"{', '.join(names[:6])}. the installed SLSsteam is the public build: on its own it adds games to the "
             "library but doesn't download them, so steam shows 0 B (and deletes downloaded files at its next start)",
-            "add SLSsteam's download plugin: `paws plugins download`, or Plugins > Download plugin. "
-            "it runs inside steam, so it's your call, paws won't add it by itself",
-            None,
+            "paws adds the download plugin by default. `paws plugins download` installs it again if it's missing; "
+            "it runs inside steam and loads the next time steam starts",
+            add_plugin,
             "info",
         )
     ]

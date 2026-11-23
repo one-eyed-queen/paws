@@ -3,22 +3,33 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import os
 import re
 import time
 import zipfile
 from pathlib import Path
+from urllib.parse import quote
 
 from ..paths import default_config_dir
 from ..util import http
 from .errors import SlsError
 
-# paws picks the download.lua variant that matches this steam client and this SLSsteam build. the repo above owns
-# the list and the hashes; paws only trusts bytes whose sha256 is in that list. pinning to a tag would be stronger,
-# but the file is checked before it's installed either way.
-MANIFEST_URL = "https://raw.githubusercontent.com/one-eyed-queen/paws-plugins/main/manifest.json"
+# paws picks the download.lua variant that matches this steam client and this SLSsteam build. the private plugin
+# service owns the list and the hashes; paws only trusts bytes whose sha256 is in that list. the public repo is a
+# secondary fallback so a failed deployment doesn't leave installs unable to update.
+API_BASE = os.environ.get("PAWS_PLUGIN_API", "https://paws-plugin-api.vercel.app").rstrip("/")
+MANIFEST_URL = API_BASE + "/api/manifest"
 MANIFEST_MIRRORS = (
+    "https://raw.githubusercontent.com/one-eyed-queen/paws-plugins/main/manifest.json",
     "https://cdn.jsdelivr.net/gh/one-eyed-queen/paws-plugins@main/manifest.json",
 )
+
+
+def plugin_url(file: str) -> str:
+    """serve plugin bytes through the same API as the manifest, whatever repo the manifest came from"""
+    return API_BASE + "/api/plugin?file=" + quote(file)
+
+
 MANIFEST_CACHE = default_config_dir() / "download-plugin-manifest.json"
 MANIFEST_TTL = 600.0
 MAX_ENTRIES = 500
@@ -172,14 +183,11 @@ def select(manifest: dict, key: dict) -> tuple[dict, str] | None:
     return None
 
 
-def fetch(entry: dict) -> bytes:
-    """download one entry, unwrap a zip with exactly one lua in it, and check its hash"""
-    import hashlib
-
-    data = http.get(entry["url"], timeout=30, limit=MAX_PLUGIN_BYTES)
+def _plugin_bytes(url: str) -> bytes:
+    data = http.get(url, timeout=30, limit=MAX_PLUGIN_BYTES)
     if len(data) > MAX_PLUGIN_BYTES:
         raise SlsError("that download plugin is way bigger than a plugin should be")
-    if entry["url"].lower().endswith(".zip") or data[:2] == b"PK":
+    if url.lower().endswith(".zip") or data[:2] == b"PK":
         try:
             with zipfile.ZipFile(io.BytesIO(data)) as archive:
                 luas = [n for n in archive.namelist() if n.lower().endswith(".lua") and not n.endswith("/")]
@@ -187,13 +195,30 @@ def fetch(entry: dict) -> bytes:
                     raise SlsError(f"expected one .lua in the plugin zip, found {len(luas)}")
                 data = archive.read(luas[0])
         except zipfile.BadZipFile as error:
-            raise SlsError(f"{entry['url']}: not a valid zip: {error}") from error
-    digest = hashlib.sha256(data).hexdigest()
-    if digest != entry["sha256"]:
-        raise SlsError(
-            f"{entry['url']}: plugin sha256 was {digest[:12]}, expected {entry['sha256'][:12]}; not installed"
-        )
+            raise SlsError(f"{url}: not a valid zip: {error}") from error
     return data
+
+
+def fetch(entry: dict) -> bytes:
+    """download one entry, unwrap a zip with exactly one lua in it, and check its hash.
+
+    The API is tried first even when the manifest came from the public mirror; the raw URL in the entry is the
+    fallback. Bytes are only returned when they match the manifest's sha256.
+    """
+    urls = [plugin_url(entry["file"])]
+    if entry["url"] not in urls:
+        urls.append(entry["url"])
+    tried = []
+    for url in urls:
+        try:
+            data = _plugin_bytes(url)
+            digest = hashlib.sha256(data).hexdigest()
+            if digest != entry["sha256"]:
+                raise SlsError(f"plugin sha256 was {digest[:12]}, expected {entry['sha256'][:12]}")
+            return data
+        except Exception as error:
+            tried.append(f"{url}: {error}")
+    raise SlsError("couldn't fetch the checked download plugin. " + "; ".join(tried))
 
 
 def matches(data: bytes, entry: dict) -> bool:

@@ -8,7 +8,7 @@
 # void, gentoo, steamos and friends (steamos / bazzite keep / read-only, this never touches it).
 # keep the folder u cloned, `paws update` pulls new versions from it.
 #
-# options: --dry-run  --no-desktop  --no-alias  --no-font  --riced  --minimal  --prefix DIR  --bin DIR  --python PATH  --help
+# options: --dry-run  --no-desktop  --no-alias  --no-font  --no-download-plugin  --riced  --minimal  --prefix DIR  --bin DIR  --python PATH  --help
 # the look: --riced is the full thing, --minimal is plain text and leaves out the pictures, art, mini games and pillow. it asks if you skip both.
 set -eu
 
@@ -20,6 +20,7 @@ DRY=0
 DESKTOP=1
 ALIAS=1
 FONT=1
+PLUGIN=1
 TYPE="${PAWS_TYPE:-}"
 
 say() { printf '%s\n' "$*"; }
@@ -32,6 +33,7 @@ while [ $# -gt 0 ]; do
         --no-desktop) DESKTOP=0 ;;
         --no-alias) ALIAS=0 ;;
         --no-font) FONT=0 ;;
+        --no-download-plugin) PLUGIN=0 ;;
         --riced) TYPE=riced ;;
         --minimal) TYPE=minimal ;;
         --prefix) shift; [ $# -gt 0 ] || die "--prefix needs a folder"; PREFIX="$1" ;;
@@ -94,6 +96,19 @@ run ln -sf "$VENV/bin/paws" "$BIN/paws"
 # ---- desktop bits (nothing here opens a window) ---------------------------------------------------
 if [ "$DESKTOP" = 1 ]; then run "$BIN/paws" desktop; fi
 if [ "$ALIAS" = 1 ]; then run "$BIN/paws" alias --install; fi
+
+# ---- the download plugin: paws fetches the build for this steam / SLSsteam version ----------------------------
+# it runs inside steam, so it can't affect this session. if steam is up and Plugins is already on, or we're offline
+# on a 64-bit client, the command says why; the install still succeeds and `paws plugins download` retries later.
+if [ "$PLUGIN" = 1 ]; then
+    if [ "$DRY" = 1 ]; then
+        say "  would run: $BIN/paws plugins download"
+    elif "$BIN/paws" plugins download >/dev/null 2>&1; then
+        say "  plugin    download.lua added for this steam / SLSsteam build"
+    else
+        say "  note: download plugin not added now; run \`paws plugins download\` later (steam may need closing)"
+    fi
+fi
 
 if [ "$DRY" = 1 ]; then
     say "  would set the look to $TYPE"

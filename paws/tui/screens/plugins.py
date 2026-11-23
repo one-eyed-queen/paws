@@ -224,7 +224,7 @@ class PluginsScreen(Screen):
         self.app.push_screen(
             Confirm(
                 f"Add SLSsteam's download plugin ({plugins.DOWNLOAD})?\n"
-                "paws picks the build matching this steam client and SLSsteam version from the paws-plugins repo "
+                "paws picks the build matching this steam client and SLSsteam version from the paws plugin service "
                 "(the bundled 32-bit copy is only the offline fallback). it's what lets the public build download "
                 "games with their real size: it runs inside steam, puts your games' depots and keys in, and asks "
                 "gmrc.wudrm.com for the manifest codes valve refuses.\n"

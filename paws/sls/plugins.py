@@ -232,7 +232,7 @@ def export_plugin(name: str, dest_dir: Path) -> Path:
 # unlicensed game's files at its next start
 
 DOWNLOAD = "download.lua"
-# paws ships one 32-bit copy for offline installs; the version-aware variants live in the paws-plugins repo and
+# paws ships one 32-bit copy for offline installs; the version-aware variants live behind the paws plugin API and
 # are picked by plugin_manifest. DOWNLOAD_SHA256 stays as the hash of that bundled copy (also the name older
 # callers/tests use), not as the hash of every plugin paws will install.
 DOWNLOAD_SHA256 = "8e822aecfea085cfcada45b9ed0e8f2c09bc04b76c667cc1904342c9197be627"
@@ -367,8 +367,8 @@ def fetch_download(entry: dict | None = None) -> bytes:
             if current_key()["steam_arch"] == 64:
                 raise SlsError(
                     "the 64-bit Steam client needs the x64 download plugin, but there's no entry for this "
-                    "Steam / SLSsteam version (or the plugin repo couldn't be reached). connect, try again, "
-                    "and check paws-plugins for an update"
+                    "Steam / SLSsteam version (or the plugin service couldn't be reached). connect, try again, "
+                    "and check for a plugin update"
                 )
             shipped = bundled_download()
             if shipped is None:
@@ -435,8 +435,8 @@ def install_download(data: bytes | None = None, entry: dict | None = None) -> di
             if current_key()["steam_arch"] == 64:
                 raise SlsError(
                     "the 64-bit Steam client needs the x64 download plugin, but there's no entry for this "
-                    "Steam / SLSsteam version (or the plugin repo couldn't be reached). connect, try again, "
-                    "and check paws-plugins for an update"
+                    "Steam / SLSsteam version (or the plugin service couldn't be reached). connect, try again, "
+                    "and check for a plugin update"
                 )
             shipped = bundled_download()
             if shipped is None:
