@@ -77,9 +77,13 @@ check("cleanup leaves no comment behind", "inventory item list" in cfg.read_text
 # ---- the public build + SLSsteam's download plugin ---------------------------------------------
 import hashlib, struct
 from paws.repair.checks import check_download_plugin, check_launcher_quoting, check_public_build
-from paws.sls import SlsError, desktop, plugins
+from paws.sls import SlsError, desktop, plugin_manifest as pm, plugins
 from paws.sls.install import bits_problem
 from paws.util import elf
+
+_plugin_source = Path(pm.__file__).read_text()
+check("plugin source has no private API", "paws-plugin-api.vercel.app" not in _plugin_source, True)
+check("plugin source has no private repo", "paws-plugins-private" not in _plugin_source, True)
 
 
 def fake_elf(code: bytes, bits: int = 32) -> bytes:

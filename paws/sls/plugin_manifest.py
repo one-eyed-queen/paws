@@ -8,26 +8,26 @@ import re
 import time
 import zipfile
 from pathlib import Path
-from urllib.parse import quote
 
 from ..paths import default_config_dir
 from ..util import http
 from .errors import SlsError
 
-# paws picks the download.lua variant that matches this steam client and this SLSsteam build. the private plugin
-# service owns the list and the hashes; paws only trusts bytes whose sha256 is in that list. the public repo is a
-# secondary fallback so a failed deployment doesn't leave installs unable to update.
-API_BASE = os.environ.get("PAWS_PLUGIN_API", "https://paws-plugin-api.vercel.app").rstrip("/")
-MANIFEST_URL = API_BASE + "/api/manifest"
+# paws picks the download.lua variant that matches this steam client and this SLSsteam build. the public plugin
+# collection owns the list and the hashes; paws only trusts bytes whose sha256 is in that list. PAWS_PLUGIN_MANIFEST_URL
+# lets someone point paws at another public collection without changing the code.
+MANIFEST_URL = "https://raw.githubusercontent.com/one-eyed-queen/paws-plugins/main/manifest.json"
 MANIFEST_MIRRORS = (
-    "https://raw.githubusercontent.com/one-eyed-queen/paws-plugins/main/manifest.json",
     "https://cdn.jsdelivr.net/gh/one-eyed-queen/paws-plugins@main/manifest.json",
 )
+MANIFEST_URL_ENV = "PAWS_PLUGIN_MANIFEST_URL"
 
 
-def plugin_url(file: str) -> str:
-    """serve plugin bytes through the same API as the manifest, whatever repo the manifest came from"""
-    return API_BASE + "/api/plugin?file=" + quote(file)
+def manifest_urls() -> tuple[str, ...]:
+    """an optional public collection first, then paws' own repo and its mirror"""
+    override = os.environ.get(MANIFEST_URL_ENV, "").strip()
+    extra = tuple(u.strip() for u in override.replace(",", " ").split() if u.strip().startswith("https://"))
+    return (*extra, MANIFEST_URL, *MANIFEST_MIRRORS)
 
 
 MANIFEST_CACHE = default_config_dir() / "download-plugin-manifest.json"
@@ -123,7 +123,7 @@ def load_manifest(refresh: bool = False) -> dict:
         if cached is not None:
             return cached
     tried = []
-    for url in (MANIFEST_URL, *MANIFEST_MIRRORS):
+    for url in manifest_urls():
         try:
             manifest = validate(http.get_json(url, timeout=12))
         except Exception as error:
@@ -202,12 +202,10 @@ def _plugin_bytes(url: str) -> bytes:
 def fetch(entry: dict) -> bytes:
     """download one entry, unwrap a zip with exactly one lua in it, and check its hash.
 
-    The API is tried first even when the manifest came from the public mirror; the raw URL in the entry is the
-    fallback. Bytes are only returned when they match the manifest's sha256.
+    The URL comes from the public manifest entry itself. Bytes are only returned when they match that entry's
+    sha256, so a changed collection can't swap a plugin without changing the manifest too.
     """
-    urls = [plugin_url(entry["file"])]
-    if entry["url"] not in urls:
-        urls.append(entry["url"])
+    urls = [entry["url"]]
     tried = []
     for url in urls:
         try:

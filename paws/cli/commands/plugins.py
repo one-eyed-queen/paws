@@ -54,7 +54,7 @@ def _download(args) -> int:
         text = f"installed {result['path']}"
         if result.get("source") == "remote":
             text += (
-                f"\nplugin {result.get('plugin_version') or '?'} from the paws plugin service "
+                f"\nplugin {result.get('plugin_version') or '?'} from the public plugin collection "
                 f"(steam {result.get('steam_arch')}-bit build {result.get('steam_build')}, "
                 f"SLS {result.get('sls_version')})"
             )
